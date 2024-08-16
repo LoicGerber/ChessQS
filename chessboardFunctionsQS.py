@@ -166,17 +166,19 @@ def generate_chessboard_pattern(image_shape, tiles, tile_size, overlap):
     
     return white_tiles, black_tiles
 
-def identify_poorly_informed_tiles(image_shape, tiles, tile_analysis, ignored_tiles, threshold):
+def identify_poorly_informed_tiles(image_shape, tiles, tile_analysis, empty_tiles, ignored_tiles, threshold):
     # Generate maps and statistics
     (informed_map, nan_map, condition_map_nan_gt_informed, 
-     condition_map_nan_no_informed, condition_map_low_informed_ti, 
-     min_informed_ti, max_informed_ti, min_nan_di, max_nan_di,
-     tiles_nan_gt_informed, tiles_nan_no_informed, tiles_low_informed_ti, total_tiles) = generate_maps(image_shape, tiles, tile_analysis, ignored_tiles)
+            condition_map_nan_no_informed, condition_map_low_informed_ti, 
+            condition_map_low_informed_ti_no_nan_di,
+            min_informed_ti, max_informed_ti, min_nan_di, max_nan_di,
+            tiles_nan_gt_informed, tiles_nan_no_informed, tiles_low_informed_ti,
+            tiles_low_informed_ti_no_nan_di, total_tiles) = generate_maps(image_shape, tiles, tile_analysis, empty_tiles)
     
     # Replace tiles_low_informed_ti calculation to ensure it contains indices
     tiles_low_informed_ti_idx = [
         idx for idx, analysis in enumerate(tile_analysis) 
-        if analysis['percent_informed_ti'] < threshold and idx not in ignored_tiles
+        if analysis['percent_informed_ti'] < threshold and idx not in empty_tiles and idx not in ignored_tiles
     ]
     tiles_nan_gt_informed_ti_idx = [
         idx for idx, analysis in enumerate(tile_analysis)
@@ -215,8 +217,11 @@ def identify_poorly_informed_tiles(image_shape, tiles, tile_analysis, ignored_ti
     axs[2, 0].axis('off')
     fig.colorbar(im5, ax=axs[2, 0], fraction=0.046, pad=0.04, label='Condition')
 
-    # Remove the 5th plot, consider adding a new plot instead
+    # Plot 6: Low Informed TI and NaNs in DI
+    im6 = axs[2, 1].imshow(condition_map_low_informed_ti_no_nan_di, cmap='turbo')
+    axs[2, 1].set_title(f'Less than {threshold}% Informed TI and NaNs in DI\n{tiles_low_informed_ti_no_nan_di} / {total_tiles} tiles ({tiles_low_informed_ti_no_nan_di/total_tiles:.2%})')
     axs[2, 1].axis('off')
+    fig.colorbar(im6, ax=axs[2, 1], fraction=0.046, pad=0.04, label='Condition')
 
     plt.tight_layout()
     plt.show()
@@ -224,12 +229,13 @@ def identify_poorly_informed_tiles(image_shape, tiles, tile_analysis, ignored_ti
     # Return the indices of poorly informed tiles
     return tiles_low_informed_ti_idx, tiles_nan_gt_informed_ti_idx
 
-def generate_maps(image_shape, tiles, tile_analysis, ignored_tiles):
+def generate_maps(image_shape, tiles, tile_analysis, empty_tiles):
     informed_map = np.full(image_shape[:2], np.nan)
     nan_map = np.full(image_shape[:2], np.nan)
     condition_map_nan_gt_informed = np.full(image_shape[:2], np.nan)
     condition_map_nan_no_informed = np.full(image_shape[:2], np.nan)
     condition_map_low_informed_ti = np.full(image_shape[:2], np.nan)
+    condition_map_low_informed_ti_no_nan_di = np.full(image_shape[:2], np.nan)
     
     min_informed_ti = float('inf')
     max_informed_ti = float('-inf')
@@ -239,12 +245,13 @@ def generate_maps(image_shape, tiles, tile_analysis, ignored_tiles):
     tiles_nan_gt_informed = 0
     tiles_nan_no_informed = 0
     tiles_low_informed_ti = 0
+    tiles_low_informed_ti_no_nan_di = 0
     
     total_tiles = 0
     
     for idx, (i_start, j_start, i_end, j_end) in enumerate(tiles):
-        if idx in ignored_tiles:
-            continue  # Skip ignored tiles
+        if idx in empty_tiles:
+            continue  # Skip empty tiles
         
         total_tiles += 1
         analysis = tile_analysis[idx]
@@ -280,11 +287,20 @@ def generate_maps(image_shape, tiles, tile_analysis, ignored_tiles):
             tiles_low_informed_ti += 1
         else:
             condition_map_low_informed_ti[i_start:i_end, j_start:j_end] = 0
+        
+        # less 25% and no nans
+        if analysis['percent_informed_ti'] < 25 and analysis['percent_nan_di'] > 0:
+            condition_map_low_informed_ti_no_nan_di[i_start:i_end, j_start:j_end] = 1
+            tiles_low_informed_ti_no_nan_di += 1
+        else:
+            condition_map_low_informed_ti_no_nan_di[i_start:i_end, j_start:j_end] = 0
     
     return (informed_map, nan_map, condition_map_nan_gt_informed, 
             condition_map_nan_no_informed, condition_map_low_informed_ti, 
+            condition_map_low_informed_ti_no_nan_di,
             min_informed_ti, max_informed_ti, min_nan_di, max_nan_di,
-            tiles_nan_gt_informed, tiles_nan_no_informed, tiles_low_informed_ti, total_tiles)
+            tiles_nan_gt_informed, tiles_nan_no_informed, tiles_low_informed_ti,
+            tiles_low_informed_ti_no_nan_di, total_tiles)
 
 def merge_poorly_informed_tiles(image, tiles, tile_analysis, tiles_low_informed_ti, empty_tiles, tile_size, overlap):
     grid = create_tile_index_grid(image.shape, tile_size, overlap)

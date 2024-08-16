@@ -77,7 +77,7 @@ visualize_tiles(di, tiles, ignored_tiles, empty_tiles, tiles_no_nans_in_di)
 visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap)
 
 # Identify poorly informed tiles
-poorly_informed_tiles, nan_gt_informed_tiles = identify_poorly_informed_tiles(ti.shape, tiles, tile_analysis, ignored_tiles, threshold)
+poorly_informed_tiles, nan_gt_informed_tiles = identify_poorly_informed_tiles(ti.shape, tiles, tile_analysis, empty_tiles, ignored_tiles, threshold)
 print(f"{len(poorly_informed_tiles)} tiles without at least {threshold}% informed pixels:", poorly_informed_tiles)
 print(f"{len(nan_gt_informed_tiles)} tiles with more NaNs in Di than informed pixels in Ti:", nan_gt_informed_tiles)
 
