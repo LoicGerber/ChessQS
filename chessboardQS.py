@@ -63,7 +63,7 @@ di           = load_image(di_file_path)
 ki = createKernel(**ki_params)
 
 # Prepare tiles, analyze, and identify ignored tiles
-tiles, tile_analysis, ignored_tiles, tiles_with_nothing, tiles_no_nans_in_di = prepare_tiles(ti, di, tile_size, overlap)
+tiles, tile_analysis, ignored_tiles, empty_tiles, tiles_no_nans_in_di = prepare_tiles(ti, di, tile_size, overlap)
 
 # Print the number of tiles and ignored tiles
 print(f'Total number of tiles: {len(tiles)}')
@@ -71,17 +71,18 @@ print(f'Ignored tiles: {len(ignored_tiles)}')
 print(f'Tiles to be simulated: {len(tiles) - len(ignored_tiles)}')
 
 # Visualize the tiles on the image
-visualize_tiles(di, tiles, ignored_tiles, tiles_with_nothing, tiles_no_nans_in_di)
+visualize_tiles(di, tiles, ignored_tiles, empty_tiles, tiles_no_nans_in_di)
 
 # Visualize the chessboard pattern
 visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap)
 
 # Identify poorly informed tiles
-poorly_informed_tiles = identify_poorly_informed_tiles(ti.shape, tiles, tile_analysis, ignored_tiles, threshold)
+poorly_informed_tiles, nan_gt_informed_tiles = identify_poorly_informed_tiles(ti.shape, tiles, tile_analysis, ignored_tiles, threshold)
 print(f"{len(poorly_informed_tiles)} tiles without at least {threshold}% informed pixels:", poorly_informed_tiles)
+print(f"{len(nan_gt_informed_tiles)} tiles with more NaNs in Di than informed pixels in Ti:", nan_gt_informed_tiles)
 
 # Merge poorly informed tiles
-modified_tiles = merge_poorly_informed_tiles(ti, tiles, tile_analysis, poorly_informed_tiles, ignored_tiles, tile_size, overlap)
+modified_tiles = merge_poorly_informed_tiles(ti, tiles, tile_analysis, poorly_informed_tiles, empty_tiles, tile_size, overlap)
 
 # Update tile analysis after merging
 new_analysis = new_tile_analysis(modified_tiles, ti)
@@ -95,7 +96,7 @@ visualize_modified_tiles(di, tiles, modified_tiles, ignored_tiles, None)  # None
 
 # Run simulations based on the modified tiles
 final_simulation_result = run_simulations(
-    ti, di, modified_tiles, tiles, tile_analysis, ignored_tiles, ki, g2s_params, tile_size, overlap
+    ti, di, modified_tiles, tiles, tile_analysis, ignored_tiles, nan_gt_informed_tiles, ki, g2s_params, tile_size, overlap
 )
 
 # Save the final result as a GeoTIFF file

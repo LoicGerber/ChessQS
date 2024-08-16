@@ -178,6 +178,10 @@ def identify_poorly_informed_tiles(image_shape, tiles, tile_analysis, ignored_ti
         idx for idx, analysis in enumerate(tile_analysis) 
         if analysis['percent_informed_ti'] < threshold and idx not in ignored_tiles
     ]
+    tiles_nan_gt_informed_ti_idx = [
+        idx for idx, analysis in enumerate(tile_analysis)
+        if analysis['percent_informed_ti'] < analysis['percent_nan_di']
+    ]
 
     fig, axs = plt.subplots(3, 2, figsize=(15, 15))
 
@@ -218,7 +222,7 @@ def identify_poorly_informed_tiles(image_shape, tiles, tile_analysis, ignored_ti
     plt.show()
 
     # Return the indices of poorly informed tiles
-    return tiles_low_informed_ti_idx
+    return tiles_low_informed_ti_idx, tiles_nan_gt_informed_ti_idx
 
 def generate_maps(image_shape, tiles, tile_analysis, ignored_tiles):
     informed_map = np.full(image_shape[:2], np.nan)
@@ -282,15 +286,15 @@ def generate_maps(image_shape, tiles, tile_analysis, ignored_tiles):
             min_informed_ti, max_informed_ti, min_nan_di, max_nan_di,
             tiles_nan_gt_informed, tiles_nan_no_informed, tiles_low_informed_ti, total_tiles)
 
-def merge_poorly_informed_tiles(image, tiles, tile_analysis, tiles_low_informed_ti, ignored_tiles, tile_size, overlap):
+def merge_poorly_informed_tiles(image, tiles, tile_analysis, tiles_low_informed_ti, empty_tiles, tile_size, overlap):
     grid = create_tile_index_grid(image.shape, tile_size, overlap)
     modified_tiles = tiles.copy()
     
-    poorly_informed_tiles = [idx for idx in tiles_low_informed_ti if idx not in ignored_tiles]
+    poorly_informed_tiles = [idx for idx in tiles_low_informed_ti if idx not in empty_tiles]
     merged_tiles = {}
 
     for idx in poorly_informed_tiles:
-        neighbors = find_neighbors(grid, idx, tiles, ignored_tiles, tile_size, overlap)
+        neighbors = find_neighbors(grid, idx, tiles, empty_tiles, tile_size, overlap)
 
         if not neighbors:
             print(f"No valid neighbors found for tile {idx}")
@@ -440,7 +444,7 @@ def new_tile_analysis(tiles, ti):
 
     return new_analysis
 
-def run_simulations(ti, di, modified_tiles, tiles, tile_analysis, ignored_tiles, ki, g2s_params, tile_size, overlap):
+def run_simulations(ti, di, modified_tiles, tiles, tile_analysis, ignored_tiles, nan_gt_informed_tiles, ki, g2s_params, tile_size, overlap):
     cumulative_simulation = di.copy()
     
     # Generate chessboard pattern
@@ -452,8 +456,12 @@ def run_simulations(ti, di, modified_tiles, tiles, tile_analysis, ignored_tiles,
 
     # Run simulations on white tiles first
     for idx in white_tiles:
-        tile_coords = modified_tiles[idx]  # Use updated coordinates for ti
-        original_coords = tiles[idx]  # Use original coordinates for di
+        if idx in nan_gt_informed_tiles:            # special case for when NaNs in Di > informed pixels in Ti
+            tile_coords = modified_tiles[idx]       # Use updated coordinates for ti
+            original_coords = modified_tiles[idx]   # Use updated coordinates for di 
+        else:
+            tile_coords = modified_tiles[idx]       # Use updated coordinates for ti
+            original_coords = tiles[idx]            # Use original coordinates for di
         analysis = tile_analysis[idx]
 
         if analysis['num_nan_di'] == 0:
@@ -468,8 +476,12 @@ def run_simulations(ti, di, modified_tiles, tiles, tile_analysis, ignored_tiles,
     
     # Run simulations on black tiles
     for idx in black_tiles:
-        tile_coords = modified_tiles[idx]  # Use updated coordinates for ti
-        original_coords = tiles[idx]  # Use original coordinates for di
+        if idx in nan_gt_informed_tiles:            # special case for when NaNs in Di > informed pixels in Ti
+            tile_coords = modified_tiles[idx]       # Use updated coordinates for ti
+            original_coords = modified_tiles[idx]   # Use original coordinates for di
+        else:
+            tile_coords = modified_tiles[idx]       # Use updated coordinates for ti
+            original_coords = tiles[idx]            # Use original coordinates for di
         analysis = tile_analysis[idx]
 
         if analysis['num_nan_di'] == 0:
