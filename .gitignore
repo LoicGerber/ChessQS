@@ -1,3 +1,5 @@
+__pycache__
+*.pyc
 *.tif
 *.tiff
 *.h5
