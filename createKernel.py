@@ -85,11 +85,11 @@ def createKernel(path, layer_sizes, layer_values, map_type, sigma_gaus, expo_sca
         elif map_type[i] == 3:
             ki[:, :, i] = nan_map * layer_values[i]
     
-    if file_format == 'tiff':
+    if file_format == 'tiff' or file_format == 'tif':
         save_as_tiff(path, name, ki)
-    elif file_format == 'hdf5':
+    elif file_format == 'hdf5' or file_format == 'h5':
         save_as_hdf5(path, name, ki)
     else:
         print('ki not saved...')
 
-    return ki # 0 = Uniform, 1 = Gaussian, 2 = Exponential, 3 = NaN
+    return ki 

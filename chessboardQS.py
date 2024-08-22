@@ -89,7 +89,7 @@ new_analysis = new_tile_analysis(modified_tiles, ti)
 
 # Validate merged tiles to ensure they have at least 25% informed pixels
 invalid_tiles = validate_tiles(new_analysis, ignored_tiles, threshold)
-print(f"{len(invalid_tiles)} tiles without at least {threshold}% informed pixels:", invalid_tiles)
+print(f"{len(invalid_tiles)} merged tiles without at least {threshold}% informed pixels:", invalid_tiles)
 
 # Visualize the modified tiles
 visualize_modified_tiles(di, tiles, modified_tiles, ignored_tiles, None)  # None shows all modified tiles

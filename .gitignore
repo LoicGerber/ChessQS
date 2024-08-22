@@ -4,3 +4,4 @@ __pycache__
 *.tiff
 *.h5
 *_prod*
+*_TEST*
