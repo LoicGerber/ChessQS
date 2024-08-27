@@ -20,10 +20,10 @@ diName    = 'di.h5'     # either tiff or h5
 outName   = 'outName'   # without extension
 
 # Chessboard parameters
-tile_size = 1000        # size of chessboard tiles
-overlap   = 100         # overlap between tiles
-threshold = 25          # threshold to define poorly informed tiles
-maxTileSize = 2000      # maximum length of merged tiles, in pixels 
+tile_size   = 1000          # size of chessboard tiles
+overlap     = 100           # overlap between tiles
+threshold   = 25            # threshold to define poorly informed tiles
+maxTileSize = [2000, 2000]  # maximum length of merged tiles, in pixels 
 
 # Variable weights
 varWeights = [1, 0.1]
@@ -87,7 +87,7 @@ print(f"{len(poorly_informed_tiles)} tiles without at least {threshold}% informe
 print(f"{len(nan_gt_informed_tiles)} tiles with more NaNs in Di than informed pixels in Ti:", nan_gt_informed_tiles)
 
 # Merge poorly informed tiles
-modified_tiles, new_analysis = iterative_merge_poorly_informed_tiles(ti, tiles, tile_analysis, poorly_informed_tiles, empty_tiles, tile_size, overlap, threshold, maxTileSize, max_iterations=10)
+modified_tiles, new_analysis = iterative_merge_poorly_informed_tiles(ti, tiles, tile_analysis, poorly_informed_tiles, empty_tiles, ignored_tiles, tile_size, overlap, threshold, maxTileSize, max_iterations=10)
 
 # Visualize the modified tiles
 visualize_modified_tiles(di, tiles, modified_tiles, ignored_tiles, None)  # None shows all modified tiles

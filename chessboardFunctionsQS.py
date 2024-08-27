@@ -173,7 +173,7 @@ def identify_poorly_informed_tiles(image_shape, tiles, tile_analysis, empty_tile
             condition_map_low_informed_ti_no_nan_di,
             min_informed_ti, max_informed_ti, min_nan_di, max_nan_di,
             tiles_nan_gt_informed, tiles_nan_no_informed, tiles_low_informed_ti,
-            tiles_low_informed_ti_no_nan_di, total_tiles) = generate_maps(image_shape, tiles, tile_analysis, empty_tiles)
+            tiles_low_informed_ti_no_nan_di, total_tiles) = generate_maps(image_shape, tiles, tile_analysis, empty_tiles, threshold)
     
     # Replace tiles_low_informed_ti calculation to ensure it contains indices
     tiles_low_informed_ti_idx = [
@@ -182,7 +182,7 @@ def identify_poorly_informed_tiles(image_shape, tiles, tile_analysis, empty_tile
     ]
     tiles_nan_gt_informed_ti_idx = [
         idx for idx, analysis in enumerate(tile_analysis)
-        if analysis['percent_informed_ti'] < analysis['percent_nan_di']
+        if analysis['percent_informed_ti'] < analysis['percent_nan_di'] and idx not in empty_tiles and idx not in ignored_tiles
     ]
 
     fig, axs = plt.subplots(3, 2, figsize=(15, 15))
@@ -229,7 +229,7 @@ def identify_poorly_informed_tiles(image_shape, tiles, tile_analysis, empty_tile
     # Return the indices of poorly informed tiles
     return tiles_low_informed_ti_idx, tiles_nan_gt_informed_ti_idx
 
-def generate_maps(image_shape, tiles, tile_analysis, empty_tiles):
+def generate_maps(image_shape, tiles, tile_analysis, empty_tiles, threshold):
     informed_map = np.full(image_shape[:2], np.nan)
     nan_map = np.full(image_shape[:2], np.nan)
     condition_map_nan_gt_informed = np.full(image_shape[:2], np.nan)
@@ -282,14 +282,14 @@ def generate_maps(image_shape, tiles, tile_analysis, empty_tiles):
             condition_map_nan_no_informed[i_start:i_end, j_start:j_end] = 0
 
         # Condition 4: Less than 25% informed pixels in TI
-        if analysis['percent_informed_ti'] < 25:
+        if analysis['percent_informed_ti'] < threshold:
             condition_map_low_informed_ti[i_start:i_end, j_start:j_end] = 1
             tiles_low_informed_ti += 1
         else:
             condition_map_low_informed_ti[i_start:i_end, j_start:j_end] = 0
         
         # less 25% and no nans
-        if analysis['percent_informed_ti'] < 25 and analysis['percent_nan_di'] > 0:
+        if analysis['percent_informed_ti'] < threshold and analysis['percent_nan_di'] > 0:
             condition_map_low_informed_ti_no_nan_di[i_start:i_end, j_start:j_end] = 1
             tiles_low_informed_ti_no_nan_di += 1
         else:
@@ -302,45 +302,17 @@ def generate_maps(image_shape, tiles, tile_analysis, empty_tiles):
             tiles_nan_gt_informed, tiles_nan_no_informed, tiles_low_informed_ti,
             tiles_low_informed_ti_no_nan_di, total_tiles)
 
-def merge_poorly_informed_tiles(image, tiles, tile_analysis, tiles_low_informed_ti, empty_tiles, tile_size, overlap):
+def iterative_merge_poorly_informed_tiles(image, tiles, tile_analysis, poorly_informed_tiles, empty_tiles, ignored_tiles, tile_size, overlap, threshold, maxTileSize, max_iterations):
     grid = create_tile_index_grid(image.shape, tile_size, overlap)
     modified_tiles = tiles.copy()
-    
-    poorly_informed_tiles = [idx for idx in tiles_low_informed_ti if idx not in empty_tiles]
-    merged_tiles = {}
 
-    for idx in poorly_informed_tiles:
-        neighbors = find_neighbors(grid, idx, tiles, empty_tiles, tile_size, overlap)
-
-        if not neighbors:
-            print(f"No valid neighbors found for tile {idx}")
-            continue
-
-        best_neighbor_idx = max(neighbors, key=lambda n_idx: tile_analysis[n_idx]['percent_informed_ti'])
-        
-        # Merge the poorly informed tile with the best neighbor
-        i_start, j_start, i_end, j_end = tiles[idx]
-        ni_start, nj_start, ni_end, nj_end = tiles[best_neighbor_idx]
-        merged_tile = (
-            min(i_start, ni_start), min(j_start, nj_start),
-            max(i_end, ni_end), max(j_end, nj_end)
-        )
-        
-        merged_tiles[idx] = merged_tile
-
-    for idx, merged_tile in merged_tiles.items():
-        modified_tiles[idx] = merged_tile
-
-    return modified_tiles
-
-def iterative_merge_poorly_informed_tiles(image, tiles, tile_analysis, poorly_informed_tiles, empty_tiles, tile_size, overlap, threshold, maxTileSize, max_iterations=5):
-    grid = create_tile_index_grid(image.shape, tile_size, overlap)
-    modified_tiles = tiles.copy()
+    initial_poorly_informed = poorly_informed_tiles.copy()
 
     iteration = 0
 
     while iteration < max_iterations and poorly_informed_tiles:
-        print(f"\nIteration {iteration + 1}: {len(poorly_informed_tiles)} poorly informed tiles.")
+        print(f"ITERATION {iteration + 1}/{max_iterations}")
+        print(f"    {len(poorly_informed_tiles)} poorly informed tiles")
         
         # Track the number of poorly informed tiles at the start of the iteration
         initial_poorly_informed_count = len(poorly_informed_tiles)
@@ -352,7 +324,7 @@ def iterative_merge_poorly_informed_tiles(image, tiles, tile_analysis, poorly_in
             neighbors = find_neighbors(grid, idx, modified_tiles, empty_tiles, tile_size, overlap)
 
             if not neighbors:
-                print(f"No valid neighbors found for tile {idx}")
+                print(f"        No valid neighbors found for tile {idx}...")
                 continue
 
             # Find the best neighboring tile based on the highest percent of informed pixels
@@ -387,28 +359,30 @@ def iterative_merge_poorly_informed_tiles(image, tiles, tile_analysis, poorly_in
         tile_analysis = new_tile_analysis(modified_tiles, image)
 
         # Validate tiles to ensure they now meet the threshold
-        poorly_informed_tiles = validate_tiles(tile_analysis, empty_tiles, threshold)
+        poorly_informed_tiles = validate_tiles(tile_analysis, empty_tiles, ignored_tiles, threshold)
 
-        print(f"Remaining unsatisfactory tiles: {len(poorly_informed_tiles)}")
+        print(f"    {len(poorly_informed_tiles)} unsatisfactory tiles remaining...")
 
         # Check if there's been any improvement
         if len(poorly_informed_tiles) >= initial_poorly_informed_count:
             print(f"No improvement detected in iteration {iteration + 1}. Stopping early...")
-            print(f"{len(poorly_informed_tiles)} tiles still do not meet the {threshold}% threshold: {poorly_informed_tiles}")
+            merged_poor = [idx for idx in initial_poorly_informed if idx not in poorly_informed_tiles]
+            print(f"    {len(merged_poor)} tiles merged: {merged_poor}")
+            print(f"    {len(poorly_informed_tiles)} tiles still do not meet the {threshold}% threshold: {poorly_informed_tiles}")
             break
         
         iteration += 1
         if not poorly_informed_tiles:
-            print(f"All tiles meet the threshold after {iteration} iteration(s).")
+            print(f"All tiles meet the {threshold}% threshold after {iteration} iteration(s).")
             break
 
     if iteration >= max_iterations and poorly_informed_tiles:
-        print(f"Max iterations reached ({max_iterations}). {len(poorly_informed_tiles)} tiles still do not meet the threshold: {poorly_informed_tiles}")
+        print(f"Max iterations reached ({max_iterations}).")
+        merged_poor = [idx for idx in initial_poorly_informed if idx not in poorly_informed_tiles]
+        print(f"    {len(merged_poor)} tiles merged: {merged_poor}")
+        print(f"    {len(poorly_informed_tiles)} tiles still do not meet the {threshold}% threshold: {poorly_informed_tiles}")
 
     return modified_tiles, tile_analysis
-
-
-
 
 def create_tile_index_grid(image_shape, tile_size, overlap):
     height, width = image_shape[:2]
@@ -455,18 +429,18 @@ def find_neighbors(grid, tile_idx, tiles, ignored_tiles, tile_size, overlap):
     
     return neighbors
 
-def validate_tiles(updated_analysis, ignored_tiles, min_informed_percent=25):
+def validate_tiles(updated_analysis, empty_tiles, ignored_tiles, threshold):
     invalid_tiles = []
 
     # Create a set for faster lookup
-    ignored_tiles_set = set(ignored_tiles)
+    ignored_tiles_set = set(empty_tiles + ignored_tiles)
 
     for analysis in updated_analysis:
         idx = analysis['tile_index']
         if idx in ignored_tiles_set:
             continue  # Skip ignored tiles
 
-        if analysis['percent_informed_ti'] < min_informed_percent:
+        if analysis['percent_informed_ti'] < threshold:
             invalid_tiles.append(idx)
 
     return invalid_tiles
