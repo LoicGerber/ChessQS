@@ -333,6 +333,83 @@ def merge_poorly_informed_tiles(image, tiles, tile_analysis, tiles_low_informed_
 
     return modified_tiles
 
+def iterative_merge_poorly_informed_tiles(image, tiles, tile_analysis, poorly_informed_tiles, empty_tiles, tile_size, overlap, threshold, maxTileSize, max_iterations=5):
+    grid = create_tile_index_grid(image.shape, tile_size, overlap)
+    modified_tiles = tiles.copy()
+
+    iteration = 0
+
+    while iteration < max_iterations and poorly_informed_tiles:
+        print(f"\nIteration {iteration + 1}: {len(poorly_informed_tiles)} poorly informed tiles.")
+        
+        # Track the number of poorly informed tiles at the start of the iteration
+        initial_poorly_informed_count = len(poorly_informed_tiles)
+        
+        merged_tiles = {}
+
+        # Attempt to merge each poorly informed tile with its best neighbor
+        for idx in poorly_informed_tiles:
+            neighbors = find_neighbors(grid, idx, modified_tiles, empty_tiles, tile_size, overlap)
+
+            if not neighbors:
+                print(f"No valid neighbors found for tile {idx}")
+                continue
+
+            # Find the best neighboring tile based on the highest percent of informed pixels
+            best_neighbor_idx = max(neighbors, key=lambda n_idx: tile_analysis[n_idx]['percent_informed_ti'])
+
+            # Merge the tile with its best neighbor
+            i_start, j_start, i_end, j_end = modified_tiles[idx]
+            ni_start, nj_start, ni_end, nj_end = modified_tiles[best_neighbor_idx]
+
+            # Create a merged tile by expanding the boundaries
+            merged_tile = (
+                min(i_start, ni_start), min(j_start, nj_start),
+                max(i_end, ni_end), max(j_end, nj_end)
+            )
+            
+            # Calculate the size of the merged tile
+            merged_height = merged_tile[2] - merged_tile[0]
+            merged_width = merged_tile[3] - merged_tile[1]
+
+            # Check if the merged tile exceeds the maximum size
+            if merged_height <= maxTileSize[0] and merged_width <= maxTileSize[1]:
+                merged_tiles[idx] = merged_tile
+            else:
+                pass
+                #print(f"Tile {idx} and {best_neighbor_idx} exceed the maximum allowed size after merging, so no further merging.")
+
+        # Update the modified_tiles with the newly merged tiles
+        for idx, merged_tile in merged_tiles.items():
+            modified_tiles[idx] = merged_tile
+
+        # Reanalyze tiles after merging
+        tile_analysis = new_tile_analysis(modified_tiles, image)
+
+        # Validate tiles to ensure they now meet the threshold
+        poorly_informed_tiles = validate_tiles(tile_analysis, empty_tiles, threshold)
+
+        print(f"Remaining unsatisfactory tiles: {len(poorly_informed_tiles)}")
+
+        # Check if there's been any improvement
+        if len(poorly_informed_tiles) >= initial_poorly_informed_count:
+            print(f"No improvement detected in iteration {iteration + 1}. Stopping early...")
+            print(f"{len(poorly_informed_tiles)} tiles still do not meet the {threshold}% threshold: {poorly_informed_tiles}")
+            break
+        
+        iteration += 1
+        if not poorly_informed_tiles:
+            print(f"All tiles meet the threshold after {iteration} iteration(s).")
+            break
+
+    if iteration >= max_iterations and poorly_informed_tiles:
+        print(f"Max iterations reached ({max_iterations}). {len(poorly_informed_tiles)} tiles still do not meet the threshold: {poorly_informed_tiles}")
+
+    return modified_tiles, tile_analysis
+
+
+
+
 def create_tile_index_grid(image_shape, tile_size, overlap):
     height, width = image_shape[:2]
     step = tile_size - overlap

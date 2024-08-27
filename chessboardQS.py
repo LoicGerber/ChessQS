@@ -1,5 +1,6 @@
 import os
 import h5py
+import numpy as np
 import matplotlib.pyplot as plt
 from rasterio.transform import from_origin
 import rasterio
@@ -7,8 +8,8 @@ import rasterio
 from chessboardFunctionsQS import (
     load_image, prepare_tiles, visualize_tiles, 
     visualize_filtered_chessboard, identify_poorly_informed_tiles,  
-    merge_poorly_informed_tiles, validate_tiles, visualize_modified_tiles,  
-    new_tile_analysis, run_simulations
+    iterative_merge_poorly_informed_tiles,
+    visualize_modified_tiles, run_simulations
 )
 from createKernel import createKernel
 
@@ -22,13 +23,17 @@ outName   = 'outName'   # without extension
 tile_size = 1000        # size of chessboard tiles
 overlap   = 100         # overlap between tiles
 threshold = 25          # threshold to define poorly informed tiles
+maxTileSize = 2000      # maximum length of merged tiles, in pixels 
+
+# Variable weights
+varWeights = [1, 0.1]
 
 # Kernel parameters
 ki_params = {
     'path':          dirPath,   # path to saving directory
     'layer_sizes':  [101, 101], # size of kernel
-    'layer_values': [1],        # value for each layer
-    'map_type':     [2],        # 0: uniform, 1: gaussian, 2: exponential, 3: NaN except central pixel
+    'layer_values': [1, 1],        # value for each layer
+    'map_type':     [2, 3],        # 0: uniform, 1: gaussian, 2: exponential, 3: NaN except central pixel
     'sigma_gaus':    50,        # sigma for gaussian maps
     'expo_scale':    0.02,      # scaling factor for exponential maps
     'name':         'ki',       # name of file for saving
@@ -38,9 +43,9 @@ ki_params = {
 # QS parameters
 g2s_params = (
     '-a',  'qs',    # algorithm
-    '-dt', [1],     # data type, 0: continuous, 1: categorical
+    '-dt', [1, 0],     # data type, 0: continuous, 1: categorical
     '-k',   1,      # 
-    '-n',  [10],    # number of neighbours
+    '-n',  [10, 1],    # number of neighbours
     '-j',   0.5     # computing power
 )
 
@@ -54,10 +59,10 @@ crs_str      = 'EPSG:2056'          # EPSG code
 # Load images
 ti_file_path = os.path.join(dirPath, tiName)
 ti           = load_image(ti_file_path)
-# ti           = ti[:2001,10000:]
+ti           = ti * np.sqrt(varWeights)
 di_file_path = os.path.join(dirPath, diName)
 di           = load_image(di_file_path)
-# di           = di[:2001,10000:]
+di           = di * np.sqrt(varWeights)
 
 # Create the kernel
 ki = createKernel(**ki_params)
@@ -82,14 +87,7 @@ print(f"{len(poorly_informed_tiles)} tiles without at least {threshold}% informe
 print(f"{len(nan_gt_informed_tiles)} tiles with more NaNs in Di than informed pixels in Ti:", nan_gt_informed_tiles)
 
 # Merge poorly informed tiles
-modified_tiles = merge_poorly_informed_tiles(ti, tiles, tile_analysis, poorly_informed_tiles, empty_tiles, tile_size, overlap)
-
-# Update tile analysis after merging
-new_analysis = new_tile_analysis(modified_tiles, ti)
-
-# Validate merged tiles to ensure they have at least 25% informed pixels
-invalid_tiles = validate_tiles(new_analysis, ignored_tiles, threshold)
-print(f"{len(invalid_tiles)} merged tiles without at least {threshold}% informed pixels:", invalid_tiles)
+modified_tiles, new_analysis = iterative_merge_poorly_informed_tiles(ti, tiles, tile_analysis, poorly_informed_tiles, empty_tiles, tile_size, overlap, threshold, maxTileSize, max_iterations=10)
 
 # Visualize the modified tiles
 visualize_modified_tiles(di, tiles, modified_tiles, ignored_tiles, None)  # None shows all modified tiles
