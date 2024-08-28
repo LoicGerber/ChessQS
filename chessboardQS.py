@@ -56,6 +56,9 @@ xmin, xmax   = 2565000, 2590000     # x-axis min max coordinates
 ymin, ymax   = 1133000, 1175000     # y-axis min max coordinates
 crs_str      = 'EPSG:2056'          # EPSG code
 
+# Show plots
+plot = False
+
 # Load images
 ti_file_path = os.path.join(dirPath, tiName)
 ti           = load_image(ti_file_path)
@@ -75,26 +78,27 @@ print(f'Total number of tiles: {len(tiles)}')
 print(f'Ignored tiles: {len(ignored_tiles)}')
 print(f'Tiles to be simulated: {len(tiles) - len(ignored_tiles)}')
 
-# Visualize the tiles on the image
-visualize_tiles(di, tiles, ignored_tiles, empty_tiles, tiles_no_nans_in_di)
-
-# Visualize the chessboard pattern
-visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap)
+if plot == True:
+    # Visualize the tiles on the image
+    visualize_tiles(di, tiles, ignored_tiles, empty_tiles, tiles_no_nans_in_di)
+    # Visualize the chessboard pattern
+    visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap)
 
 # Identify poorly informed tiles
-poorly_informed_tiles, nan_gt_informed_tiles = identify_poorly_informed_tiles(ti.shape, tiles, tile_analysis, empty_tiles, ignored_tiles, threshold)
+poorly_informed_tiles, nan_gt_informed_tiles = identify_poorly_informed_tiles(ti, tiles, tile_analysis, empty_tiles, ignored_tiles, threshold, plot)
 print(f"{len(poorly_informed_tiles)} tiles without at least {threshold}% informed pixels:", poorly_informed_tiles)
 print(f"{len(nan_gt_informed_tiles)} tiles with more NaNs in Di than informed pixels in Ti:", nan_gt_informed_tiles)
 
 # Merge poorly informed tiles
-modified_tiles, new_analysis = iterative_merge_poorly_informed_tiles(ti, tiles, tile_analysis, poorly_informed_tiles, empty_tiles, ignored_tiles, tile_size, overlap, threshold, maxTileSize, max_iterations=10)
+mod_ti_tiles, mod_di_tiles = iterative_merge_poorly_informed_tiles(ti, di, tiles, tile_analysis, poorly_informed_tiles, nan_gt_informed_tiles, empty_tiles, ignored_tiles, tile_size, overlap, threshold, maxTileSize, max_iterations=10)
 
-# Visualize the modified tiles
-visualize_modified_tiles(di, tiles, modified_tiles, ignored_tiles, None)  # None shows all modified tiles
+if plot == True:
+    # Visualize the modified tiles
+    visualize_modified_tiles(di, tiles, mod_ti_tiles, mod_di_tiles, ignored_tiles, None)  # None shows all modified tiles
 
 # Run simulations based on the modified tiles
 final_simulation_result = run_simulations(
-    ti, di, modified_tiles, tiles, tile_analysis, ignored_tiles, nan_gt_informed_tiles, ki, g2s_params, tile_size, overlap
+    ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ignored_tiles, ki, g2s_params, tile_size, overlap
 )
 
 # Save the final result as a GeoTIFF file
@@ -118,14 +122,15 @@ outputPath = os.path.join(dirPath, f'{outName}.h5')
 with h5py.File(outputPath, 'w') as f:
     f.create_dataset('image_data', data=final_simulation_result)
 
-# Visualize the result
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 15))
-ax1.imshow(di, cmap='turbo')
-ax1.set_title('Initial state')
-ax1.axis('off')
-ax2.imshow(final_simulation_result, cmap='turbo')
-ax2.set_title('Simulation result')
-ax2.axis('off')
-plt.tight_layout()
-plt.show()
-plt.savefig(os.path.join(dirPath, 'initResultComp.png'), dpi=300, bbox_inches='tight')
+if plot == True:
+    # Visualize the result
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 15))
+    ax1.imshow(di, cmap='turbo')
+    ax1.set_title('Initial state')
+    ax1.axis('off')
+    ax2.imshow(final_simulation_result, cmap='turbo')
+    ax2.set_title('Simulation result')
+    ax2.axis('off')
+    plt.tight_layout()
+    plt.show()
+    plt.savefig(os.path.join(dirPath, 'initResultComp.png'), dpi=300, bbox_inches='tight')
