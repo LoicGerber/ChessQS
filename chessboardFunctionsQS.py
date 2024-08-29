@@ -330,67 +330,69 @@ def iterative_merge_poorly_informed_tiles(ti, di, tiles, tile_analysis, poorly_i
 
         # Attempt to merge each poorly informed tile in `ti` with its best neighbor
         for idx in poorly_informed_tiles:
-            neighbors = find_neighbors(grid, idx, mod_ti_tiles, empty_tiles, tile_size, overlap)
+            neighbors = find_neighbors(grid, idx, tiles, empty_tiles, tile_size, overlap)
 
             if not neighbors:
                 print(f"        No valid neighbors found for `ti` tile {idx}...")
                 continue
-
-            # Find the best neighboring tile based on the highest percent of informed pixels in `ti`
-            best_neighbor_idx = max(neighbors, key=lambda n_idx: tile_analysis[n_idx]['percent_informed_ti'])
-
-            # Merge the `ti` tile with its best neighbor
-            i_start, j_start, i_end, j_end = mod_ti_tiles[idx]
-            ni_start, nj_start, ni_end, nj_end = mod_ti_tiles[best_neighbor_idx]
-
-            # Create a merged tile by expanding the boundaries
-            merged_tile = (
-                min(i_start, ni_start), min(j_start, nj_start),
-                max(i_end, ni_end), max(j_end, nj_end)
-            )
             
-            # Calculate the size of the merged tile
-            merged_height = merged_tile[2] - merged_tile[0]
-            merged_width = merged_tile[3] - merged_tile[1]
+            # Sort neighbors by the highest percentage of informed pixels in `ti`
+            sorted_neighbors = sorted(neighbors, key=lambda n_idx: tile_analysis[n_idx]['percent_informed_ti'], reverse=True)
+            i_start, j_start, i_end, j_end = mod_ti_tiles[idx]
 
-            # Check if the merged tile exceeds the maximum size
-            if merged_height <= maxTileSize[0] and merged_width <= maxTileSize[1]:
-                merged_ti_tiles[idx] = merged_tile
-            else:
-                pass
-                #print(f"`ti` tile {idx} and {best_neighbor_idx} exceed the maximum allowed size after merging, so no further merging.")
+            for best_neighbor_idx in sorted_neighbors:
+                # Merge the `ti` tile with its best neighbor
+                ni_start, nj_start, ni_end, nj_end = tiles[best_neighbor_idx]
+
+                # Create a merged tile by expanding the boundaries
+                merged_tile = (
+                    min(i_start, ni_start), min(j_start, nj_start),
+                    max(i_end, ni_end), max(j_end, nj_end)
+                )
+                
+                # Calculate the size of the merged tile
+                merged_height = merged_tile[2] - merged_tile[0]
+                merged_width = merged_tile[3] - merged_tile[1]
+
+                # Check if the merged tile exceeds the maximum size
+                if merged_height <= maxTileSize[0] and merged_width <= maxTileSize[1]:
+                    merged_ti_tiles[idx] = merged_tile
+                    break
+                else:
+                    print(f"        `ti` tile {idx} and neighbor {best_neighbor_idx} exceed the maximum allowed size after merging. Trying next best neighbor...")
 
         # Attempt to merge each tile in `di` that has more NaN values than informed pixels in `ti`
         for idx in nan_gt_informed_tiles:
-            neighbors = find_neighbors(grid, idx, mod_di_tiles, empty_tiles, tile_size, overlap)
+            neighbors = find_neighbors(grid, idx, tiles, empty_tiles, tile_size, overlap)
 
             if not neighbors:
                 print(f"        No valid neighbors found for `di` tile {idx}...")
                 continue
-
-            # Find the best neighboring tile in `di` based on the same logic
-            best_neighbor_idx = max(neighbors, key=lambda n_idx: tile_analysis[n_idx]['percent_informed_ti'])
-
-            # Merge the `di` tile with its best neighbor
+            
+            # Sort neighbors by the highest percentage of informed pixels in `ti`
+            sorted_neighbors = sorted(neighbors, key=lambda n_idx: tile_analysis[n_idx]['percent_informed_ti'], reverse=True)
             i_start, j_start, i_end, j_end = mod_di_tiles[idx]
-            ni_start, nj_start, ni_end, nj_end = mod_di_tiles[best_neighbor_idx]
 
-            # Create a merged tile by expanding the boundaries
-            merged_tile = (
-                min(i_start, ni_start), min(j_start, nj_start),
-                max(i_end, ni_end), max(j_end, nj_end)
-            )
+            for best_neighbor_idx in sorted_neighbors:
+                # Merge the `di` tile with its best neighbor
+                ni_start, nj_start, ni_end, nj_end = tiles[best_neighbor_idx]
 
-            # Calculate the size of the merged tile
-            merged_height = merged_tile[2] - merged_tile[0]
-            merged_width = merged_tile[3] - merged_tile[1]
+                # Create a merged tile by expanding the boundaries
+                merged_tile = (
+                    min(i_start, ni_start), min(j_start, nj_start),
+                    max(i_end, ni_end), max(j_end, nj_end)
+                )
 
-            # Check if the merged tile exceeds the maximum size
-            if merged_height <= maxTileSize[0] and merged_width <= maxTileSize[1]:
-                merged_di_tiles[idx] = merged_tile
-            else:
-                pass
-                #print(f"`di` tile {idx} and {best_neighbor_idx} exceed the maximum allowed size after merging, so no further merging.")
+                # Calculate the size of the merged tile
+                merged_height = merged_tile[2] - merged_tile[0]
+                merged_width = merged_tile[3] - merged_tile[1]
+
+                # Check if the merged tile exceeds the maximum size
+                if merged_height <= maxTileSize[0] and merged_width <= maxTileSize[1]:
+                    merged_di_tiles[idx] = merged_tile
+                    break
+                else:
+                    print(f"        `di` tile {idx} and neighbor {best_neighbor_idx} exceed the maximum allowed size after merging. Trying next best neighbor...")
 
         # Update the modified tiles with the newly merged tiles
         for idx, merged_tile in merged_ti_tiles.items():
