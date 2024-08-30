@@ -1,1 +1,1 @@
-# chessboardQS
+# ChessQS

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from rasterio.transform import from_origin
 import rasterio
 
-from chessboardFunctionsQS import (
+from chessFunctionsQS import (
     load_image, prepare_tiles, visualize_tiles, 
     visualize_filtered_chessboard, identify_poorly_informed_tiles,  
     iterative_merge_poorly_informed_tiles,
