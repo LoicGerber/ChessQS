@@ -124,7 +124,7 @@ for idx, (y, x, max_informed_pixel, reconstructed_tile) in enumerate(best_inform
     print(f"---\nProcessing tile {idx + 1} at ({y}, {x}) with {max_informed_pixel * 100:.2f}% informed pixels\n---")
 
     outDir = os.path.join(dirPath,f'tile_{idx+1}')
-    os.makedirs(outDir, exist_ok=True)
+    #os.makedirs(outDir, exist_ok=True)
     
     tiFull = np.copy(reconstructed_tile)
     tiFull = np.where(tiFull == -2, np.nan, tiFull)
