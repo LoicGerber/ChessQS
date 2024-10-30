@@ -73,9 +73,9 @@ def analyze_tiles(tiles, ti, di):
         })
     return results
 
-def visualize_tiles(image, tiles, ignored_tiles, tiles_with_nothing, tiles_no_nans_in_di):
+def visualize_tiles(image, tiles, ignored_tiles, tiles_with_nothing, tiles_no_nans_in_di, map, tileNum):
     fig, ax = plt.subplots(1, figsize=(10, 10))
-    ax.imshow(image, cmap='turbo')
+    ax.imshow(image, cmap=map)
     
     for idx, (i_start, j_start, i_end, j_end) in enumerate(tiles):
         rect = patches.Rectangle((j_start, i_start), j_end - j_start, i_end - i_start,
@@ -88,20 +88,21 @@ def visualize_tiles(image, tiles, ignored_tiles, tiles_with_nothing, tiles_no_na
         elif idx in tiles_no_nans_in_di:
             rect.set_edgecolor('red')
         
-        center_i = i_start + (i_end - i_start) / 2
-        center_j = j_start + (j_end - j_start) / 2
-        if idx in ignored_tiles:
-            ax.text(center_j, center_i, f'{idx}', color='white', fontsize=8, ha='center', va='center', weight='bold')
-        else:
-            ax.text(center_j, center_i, f'{idx}', color='red', fontsize=8, ha='center', va='center', weight='bold')
+        if tileNum == True:
+            center_i = i_start + (i_end - i_start) / 2
+            center_j = j_start + (j_end - j_start) / 2
+            if idx in ignored_tiles:
+                ax.text(center_j, center_i, f'{idx}', color='white', fontsize=8, ha='center', va='center', weight='bold')
+            else:
+                ax.text(center_j, center_i, f'{idx}', color='red', fontsize=8, ha='center', va='center', weight='bold')
             
-    ax.set_title('Chessboard Tiling Visualization with Ignored Tiles Highlighted')
+    # ax.set_title('Chessboard Tiling Visualization with Ignored Tiles Highlighted')
     ax.axis('off')
     plt.show()
 
-def visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap):
+def visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap, map, tileNum):
     fig, ax = plt.subplots(1, figsize=(12, 12))
-    ax.imshow(di, cmap='turbo')
+    ax.imshow(di, cmap=map)
 
     # Generate the chessboard pattern
     white_tiles, black_tiles = generate_chessboard_pattern(di.shape, tiles, tile_size, overlap)
@@ -119,9 +120,10 @@ def visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap):
                                  linewidth=1, edgecolor='black', facecolor='none')
         ax.add_patch(rect)
 
-        center_i = i_start + (i_end - i_start) / 2
-        center_j = j_start + (j_end - j_start) / 2
-        ax.text(center_j, center_i, f'{idx}', color='white', fontsize=8, ha='center', va='center', weight='bold')
+        if tileNum == True:
+            center_i = i_start + (i_end - i_start) / 2
+            center_j = j_start + (j_end - j_start) / 2
+            ax.text(center_j, center_i, f'{idx}', color='white', fontsize=8, ha='center', va='center', weight='bold')
 
     # Highlight white chessboard tiles
     for idx in white_tiles:
@@ -130,9 +132,10 @@ def visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap):
                                  linewidth=2, edgecolor='lime', facecolor='none')
         ax.add_patch(rect)
         
-        center_i = i_start + (i_end - i_start) / 2
-        center_j = j_start + (j_end - j_start) / 2
-        ax.text(center_j, center_i, f'{idx}', color='lime', fontsize=8, ha='center', va='center', weight='bold')
+        if tileNum == True:
+            center_i = i_start + (i_end - i_start) / 2
+            center_j = j_start + (j_end - j_start) / 2
+            ax.text(center_j, center_i, f'{idx}', color='lime', fontsize=8, ha='center', va='center', weight='bold')
 
     # Highlight black chessboard tiles
     for idx in black_tiles:
@@ -141,11 +144,12 @@ def visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap):
                                  linewidth=2, edgecolor='magenta', facecolor='none')
         ax.add_patch(rect)
         
-        center_i = i_start + (i_end - i_start) / 2
-        center_j = j_start + (j_end - j_start) / 2
-        ax.text(center_j, center_i, f'{idx}', color='magenta', fontsize=8, ha='center', va='center', weight='bold')
+        if tileNum == True:
+            center_i = i_start + (i_end - i_start) / 2
+            center_j = j_start + (j_end - j_start) / 2
+            ax.text(center_j, center_i, f'{idx}', color='magenta', fontsize=8, ha='center', va='center', weight='bold')
 
-    ax.set_title('Filtered Chessboard Tile Movement Visualization')
+    # ax.set_title('Filtered Chessboard Tile Movement Visualization')
     ax.axis('off')
     plt.show()
 
@@ -189,45 +193,61 @@ def identify_poorly_informed_tiles(image, tiles, tile_analysis, empty_tiles, ign
             tiles_nan_gt_informed_ti_idx.append(idx)
 
     if plot == True:
-        fig, axs = plt.subplots(3, 2, figsize=(15, 15))
+        # Define a colormap and boundaries for binary (0 or 1) values
+        cmap = mcolors.ListedColormap(['black', 'red'])  # Change colors as desired
+        bounds = [-0.5, 0.5, 1.5]
+        norm = mcolors.BoundaryNorm(bounds, cmap.N)
 
         # Plot 1: Percentage of Informed Pixels in TI
-        im1 = axs[0, 0].imshow(informed_map, cmap='turbo')
-        axs[0, 0].set_title(f'Percentage of Informed Pixels in TI\nMin: {min_informed_ti:.2f}%, Max: {max_informed_ti:.2f}%')
-        axs[0, 0].axis('off')
-        fig.colorbar(im1, ax=axs[0, 0], fraction=0.046, pad=0.04, label='Percentage')
+        plt.figure(figsize=(5, 5))
+        plt.imshow(informed_map, cmap='turbo')
+        plt.title(f'Percentage of Informed Pixels in TI\nMin: {min_informed_ti:.2f}%, Max: {max_informed_ti:.2f}%')
+        plt.axis('off')
+        plt.colorbar(fraction=0.046, pad=0.04, label='Percentage')
+        plt.show()
 
         # Plot 2: Percentage of NaN Pixels in DI
-        im2 = axs[0, 1].imshow(nan_map, cmap='turbo')
-        axs[0, 1].set_title(f'Percentage of NaN Pixels in DI\nMin: {min_nan_di:.2f}%, Max: {max_nan_di:.2f}%')
-        axs[0, 1].axis('off')
-        fig.colorbar(im2, ax=axs[0, 1], fraction=0.046, pad=0.04, label='Percentage')
-        
+        plt.figure(figsize=(5, 5))
+        plt.imshow(nan_map, cmap='turbo')
+        plt.title(f'Percentage of NaN Pixels in DI\nMin: {min_nan_di:.2f}%, Max: {max_nan_di:.2f}%')
+        plt.axis('off')
+        plt.colorbar(fraction=0.046, pad=0.04, label='Percentage')
+        plt.show()
+
         # Plot 3: NaNs in DI > Informed in TI
-        im3 = axs[1, 0].imshow(map_nan_gt_informed, cmap='turbo')
-        axs[1, 0].set_title(f'NaNs in DI > Informed in TI\n{tiles_nan_gt_informed} / {total_tiles} tiles ({tiles_nan_gt_informed/total_tiles:.2%})')
-        axs[1, 0].axis('off')
-        fig.colorbar(im3, ax=axs[1, 0], fraction=0.046, pad=0.04, label='Condition')
+        plt.figure(figsize=(5, 5))
+        plt.imshow(map_nan_gt_informed, cmap=cmap, norm=norm)
+        plt.title(f'NaNs in DI > Informed in TI\n{tiles_nan_gt_informed} / {total_tiles} tiles ({tiles_nan_gt_informed/total_tiles:.2%})')
+        plt.axis('off')
+        cbar = plt.colorbar(ticks=[0, 1], fraction=0.046, pad=0.04)
+        cbar.ax.set_yticklabels(['False', 'True'])
+        plt.show()
 
         # Plot 4: NaNs in DI but No Informed in TI
-        im4 = axs[1, 1].imshow(map_nan_no_informed, cmap='turbo')
-        axs[1, 1].set_title(f'NaNs in DI but No Informed in TI\n{tiles_nan_no_informed} / {total_tiles} tiles ({tiles_nan_no_informed/total_tiles:.2%})')
-        axs[1, 1].axis('off')
-        fig.colorbar(im4, ax=axs[1, 1], fraction=0.046, pad=0.04, label='Condition')
-        
+        plt.figure(figsize=(5, 5))
+        plt.imshow(map_nan_no_informed, cmap=cmap, norm=norm)
+        plt.title(f'NaNs in DI but No Informed in TI\n{tiles_nan_no_informed} / {total_tiles} tiles ({tiles_nan_no_informed/total_tiles:.2%})')
+        plt.axis('off')
+        cbar = plt.colorbar(ticks=[0, 1], fraction=0.046, pad=0.04)
+        cbar.ax.set_yticklabels(['False', 'True'])
+        plt.show()
+
         # Plot 5: Less than 25% Informed Pixels in TI
-        im5 = axs[2, 0].imshow(map_low_informed_ti, cmap='turbo')
-        axs[2, 0].set_title(f'Less than {threshold}% Informed Pixels in TI\n{tiles_low_informed_ti} / {total_tiles} tiles ({tiles_low_informed_ti/total_tiles:.2%})')
-        axs[2, 0].axis('off')
-        fig.colorbar(im5, ax=axs[2, 0], fraction=0.046, pad=0.04, label='Condition')
+        plt.figure(figsize=(5, 5))
+        plt.imshow(map_low_informed_ti, cmap=cmap, norm=norm)
+        plt.title(f'Less than {threshold}% Informed Pixels in TI\n{tiles_low_informed_ti} / {total_tiles} tiles ({tiles_low_informed_ti/total_tiles:.2%})')
+        plt.axis('off')
+        cbar = plt.colorbar(ticks=[0, 1], fraction=0.046, pad=0.04)
+        cbar.ax.set_yticklabels(['False', 'True'])
+        plt.show()
 
         # Plot 6: Low Informed TI and NaNs in DI
-        im6 = axs[2, 1].imshow(map_low_informed_ti_no_nan_di, cmap='turbo')
-        axs[2, 1].set_title(f'Less than {threshold}% Informed TI and NaNs in DI\n{tiles_low_informed_ti_no_nan_di} / {total_tiles} tiles ({tiles_low_informed_ti_no_nan_di/total_tiles:.2%})')
-        axs[2, 1].axis('off')
-        fig.colorbar(im6, ax=axs[2, 1], fraction=0.046, pad=0.04, label='Condition')
-
-        plt.tight_layout()
+        plt.figure(figsize=(5, 5))
+        plt.imshow(map_low_informed_ti_no_nan_di, cmap=cmap, norm=norm)
+        plt.title(f'Less than {threshold}% Informed TI and NaNs in DI\n{tiles_low_informed_ti_no_nan_di} / {total_tiles} tiles ({tiles_low_informed_ti_no_nan_di/total_tiles:.2%})')
+        plt.axis('off')
+        cbar = plt.colorbar(ticks=[0, 1], fraction=0.046, pad=0.04)
+        cbar.ax.set_yticklabels(['False', 'True'])
         plt.show()
 
     # Return the indices of poorly informed tiles
@@ -313,6 +333,9 @@ def iterative_merge_poorly_informed_tiles(ti, di, tiles, tile_analysis, poorly_i
 
     initial_poorly_informed = poorly_informed_tiles.copy()
     initial_nan_gt_informed = nan_gt_informed_tiles.copy()
+    
+    initial_mod_di_tiles = mod_di_tiles.copy()
+    initial_mod_ti_tiles = mod_ti_tiles.copy()
 
     iteration = 0
 
@@ -324,6 +347,9 @@ def iterative_merge_poorly_informed_tiles(ti, di, tiles, tile_analysis, poorly_i
         # Track the number of poorly informed tiles and nan_gt_informed tiles at the start of the iteration
         initial_poorly_informed_count = len(poorly_informed_tiles)
         initial_nan_gt_informed_count = len(nan_gt_informed_tiles)
+        
+        initial_mod_di_tiles = mod_di_tiles.copy()
+        initial_mod_ti_tiles = mod_ti_tiles.copy()
         
         merged_ti_tiles = {}
         merged_di_tiles = {}
@@ -344,6 +370,11 @@ def iterative_merge_poorly_informed_tiles(ti, di, tiles, tile_analysis, poorly_i
                 # Merge the `ti` tile with its best neighbor
                 ni_start, nj_start, ni_end, nj_end = tiles[best_neighbor_idx]
 
+                if (i_start <= ni_start <= i_end and i_start <= ni_end <= i_end and
+                j_start <= nj_start <= j_end and j_start <= nj_end <= j_end):
+                    # Skip to the next neighbor if within the current tile
+                    continue
+    
                 # Create a merged tile by expanding the boundaries
                 merged_tile = (
                     min(i_start, ni_start), min(j_start, nj_start),
@@ -377,6 +408,11 @@ def iterative_merge_poorly_informed_tiles(ti, di, tiles, tile_analysis, poorly_i
                 # Merge the `di` tile with its best neighbor
                 ni_start, nj_start, ni_end, nj_end = tiles[best_neighbor_idx]
 
+                if (i_start <= ni_start <= i_end and i_start <= ni_end <= i_end and
+                j_start <= nj_start <= j_end and j_start <= nj_end <= j_end):
+                    # Skip to the next neighbor if within the current tile
+                    continue
+                
                 # Create a merged tile by expanding the boundaries
                 merged_tile = (
                     min(i_start, ni_start), min(j_start, nj_start),
@@ -413,8 +449,7 @@ def iterative_merge_poorly_informed_tiles(ti, di, tiles, tile_analysis, poorly_i
         print(f"    {len(nan_gt_informed_tiles)} `di` tiles with more NaN than informed pixels in `ti` remaining...")
 
         # Check if there's been any improvement
-        if len(poorly_informed_tiles) >= initial_poorly_informed_count and \
-           len(nan_gt_informed_tiles) >= initial_nan_gt_informed_count:
+        if initial_mod_di_tiles == mod_di_tiles and initial_mod_ti_tiles == mod_ti_tiles:
             print(f"No improvement detected in iteration {iteration + 1}. Stopping early...")
             merged_poor = [idx for idx in initial_poorly_informed if idx not in poorly_informed_tiles]
             merged_nan_gt = [idx for idx in initial_nan_gt_informed if idx not in nan_gt_informed_tiles]
@@ -504,7 +539,7 @@ def validate_tiles(updated_analysis, empty_tiles, ignored_tiles, threshold):
 
     return invalid_ti_tiles, invalid_di_tiles
 
-def visualize_modified_tiles(image, original_tiles, mod_ti_tiles, mod_di_tiles, ignored_tiles, tile_index):
+def visualize_modified_tiles(image, original_tiles, mod_ti_tiles, mod_di_tiles, ignored_tiles, map, tile_index):
     # Generate the list of differing tiles for `ti`
     differing_ti_tiles = [idx for idx, (orig, mod) in enumerate(zip(original_tiles, mod_ti_tiles)) 
                           if orig != mod and idx not in ignored_tiles]
@@ -524,16 +559,16 @@ def visualize_modified_tiles(image, original_tiles, mod_ti_tiles, mod_di_tiles, 
             return
 
     # Plot `ti` tiles
-    plot_tiles(image, original_tiles, mod_ti_tiles, ignored_tiles, differing_ti_tiles, 
-               'Original (Black), Modified (Red), and Ignored (Gray) Tiles - `ti`')
+    plot_tiles(image, original_tiles, mod_ti_tiles, ignored_tiles, differing_ti_tiles, map,
+               'TI')
 
     # Plot `di` tiles
-    plot_tiles(image, original_tiles, mod_di_tiles, ignored_tiles, differing_di_tiles, 
-               'Original (Black), Modified (Red), and Ignored (Gray) Tiles - `di`')
+    plot_tiles(image, original_tiles, mod_di_tiles, ignored_tiles, differing_di_tiles, map,
+               'DI')
 
-def plot_tiles(image, original_tiles, modified_tiles, ignored_tiles, differing_tiles, title):
+def plot_tiles(image, original_tiles, modified_tiles, ignored_tiles, differing_tiles, map, title):
     fig, ax = plt.subplots(1, figsize=(12, 12))
-    ax.imshow(image, cmap='turbo')
+    ax.imshow(image, cmap=map)
 
     # Generate a colormap with as many colors as there are differing tiles
     num_differing_tiles = len(differing_tiles)
@@ -542,18 +577,18 @@ def plot_tiles(image, original_tiles, modified_tiles, ignored_tiles, differing_t
                         for i, idx in enumerate(differing_tiles)}
 
     # Highlight the ignored tiles in gray
-    for idx in ignored_tiles:
-        i_start, j_start, i_end, j_end = original_tiles[idx]
-        rect = patches.Rectangle((j_start, i_start), j_end - j_start, i_end - i_start,
-                                    linewidth=2, edgecolor='gray', facecolor='none')
-        ax.add_patch(rect)
+    # for idx in ignored_tiles:
+    #     i_start, j_start, i_end, j_end = original_tiles[idx]
+    #     rect = patches.Rectangle((j_start, i_start), j_end - j_start, i_end - i_start,
+    #                                 linewidth=2, edgecolor='gray', facecolor='none')
+    #     ax.add_patch(rect)
 
     # Highlight the original tiles that are not ignored in black
-    for idx, (i_start, j_start, i_end, j_end) in enumerate(original_tiles):
-        if idx not in ignored_tiles:
-            rect = patches.Rectangle((j_start, i_start), j_end - j_start, i_end - i_start,
-                                        linewidth=2, edgecolor='black', facecolor='none')
-            ax.add_patch(rect)
+    # for idx, (i_start, j_start, i_end, j_end) in enumerate(original_tiles):
+    #     if idx not in ignored_tiles:
+    #         rect = patches.Rectangle((j_start, i_start), j_end - j_start, i_end - i_start,
+    #                                     linewidth=2, edgecolor='black', facecolor='none')
+    #         ax.add_patch(rect)
 
     # Highlight only the modified tiles that differ from the original in red (or other colors from the colormap)
     for idx in differing_tiles:

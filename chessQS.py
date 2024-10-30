@@ -80,9 +80,9 @@ print(f'Tiles to be simulated: {len(tiles) - len(ignored_tiles)}')
 
 if plot == True:
     # Visualize the tiles on the image
-    visualize_tiles(di, tiles, ignored_tiles, empty_tiles, tiles_no_nans_in_di)
+    visualize_tiles(di, tiles, ignored_tiles, empty_tiles, tiles_no_nans_in_di, 'turbo', tileNum = True)
     # Visualize the chessboard pattern
-    visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap)
+    visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap, 'gray', tileNum = False)
 
 # Identify poorly informed tiles
 poorly_informed_tiles, nan_gt_informed_tiles = identify_poorly_informed_tiles(ti, tiles, tile_analysis, empty_tiles, ignored_tiles, threshold, plot)
@@ -94,7 +94,7 @@ mod_ti_tiles, mod_di_tiles = iterative_merge_poorly_informed_tiles(ti, di, tiles
 
 if plot == True:
     # Visualize the modified tiles
-    visualize_modified_tiles(di, tiles, mod_ti_tiles, mod_di_tiles, ignored_tiles, None)  # None shows all modified tiles
+    visualize_modified_tiles(di, tiles, mod_ti_tiles, mod_di_tiles, ignored_tiles, 'gray', None)  # None shows all modified tiles
 
 # Run simulations based on the modified tiles
 final_simulation_result = run_simulations(
