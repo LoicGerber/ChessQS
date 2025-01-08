@@ -1,4 +1,5 @@
 import os
+import math
 import numpy as np
 import gstools as gs
 from scipy.spatial.distance import pdist
@@ -294,6 +295,37 @@ def plot_histograms(grouped_data, title_prefix, xlabel, file_prefix, dirPath):
         # Save the histogram to the specified directory
         plt.savefig(os.path.join(dirPath, f'{file_prefix}_category_{int(category)}.png'))
         plt.show()
+
+def plot_sub_histograms(grouped_data, xlabel, file_name, dirPath):
+    # Determine the number of rows and columns for subplots
+    num_categories = len(grouped_data)
+    cols = math.ceil(math.sqrt(num_categories))
+    rows = math.ceil(num_categories / cols)
+
+    # Create a figure with subplots
+    fig, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 4))
+    axes = axes.flatten()  # Flatten the axes array for easy indexing
+
+    # Plot each category in its subplot
+    for idx, (category, values) in enumerate(grouped_data.items()):
+        ax = axes[idx]
+        ax.hist(values, bins=10, edgecolor='black', alpha=0.7)
+        ax.set_title(f'Category {int(category)}')
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel('Frequency')
+        ax.grid(True)
+
+    # Hide any unused subplots
+    for idx in range(len(grouped_data), len(axes)):
+        axes[idx].axis('off')
+
+    # Adjust layout and save the figure
+    fig.tight_layout()
+    output_path = os.path.join(dirPath, f'{file_name}.png')
+    plt.savefig(output_path)
+    plt.show()
+
+    return output_path
 
 def compute_metrics(region_real, region_sim, label, sample_percentage, num_bins, max_lag):
         print(f"{label}: Real image")

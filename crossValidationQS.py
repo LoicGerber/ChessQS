@@ -5,7 +5,7 @@ import os
 import time
 from scipy.ndimage import uniform_filter, label
 from createKernel import createKernel
-from crossValFunctionsQS import plot_binned_variogram, group_by_category, plot_histograms, compute_metrics
+from crossValFunctionsQS import group_by_category, plot_sub_histograms, compute_metrics
 from g2s import g2s
 
 start_time = time.time()
@@ -249,14 +249,14 @@ integral_outer_by_category = group_by_category(results, 'integral_diff_outer')
 integral_inner_by_category = group_by_category(results, 'integral_diff_inner')
 
 # Plot histograms for RMSE
-plot_histograms(rmse_whole_by_category, 'RMSE (Whole Gap)', 'RMSE of difference', 'histogram_rmse_whole', dirPath)
-plot_histograms(rmse_outer_by_category, 'RMSE (Outer Ring)', 'RMSE of difference', 'histogram_rmse_outer', dirPath)
-plot_histograms(rmse_inner_by_category, 'RMSE (Inner Square)', 'RMSE of difference', 'histogram_rmse_inner', dirPath)
+plot_sub_histograms(rmse_whole_by_category, 'RMSE of difference', 'histogram_rmse_whole', dirPath)
+plot_sub_histograms(rmse_outer_by_category, 'RMSE of difference', 'histogram_rmse_outer', dirPath)
+plot_sub_histograms(rmse_inner_by_category, 'RMSE of difference', 'histogram_rmse_inner', dirPath)
 
 # Plot histograms for integral of the difference
-plot_histograms(integral_whole_by_category, 'Integral of Difference (Whole Gap)', 'Integral of difference', 'histogram_integral_whole', dirPath)
-plot_histograms(integral_outer_by_category, 'Integral of Difference (Outer Ring)', 'Integral of difference', 'histogram_integral_outer', dirPath)
-plot_histograms(integral_inner_by_category, 'Integral of Difference (Inner Square)', 'Integral of difference', 'histogram_integral_inner', dirPath)
+plot_sub_histograms(integral_whole_by_category, 'Integral of difference', 'histogram_integral_whole', dirPath)
+plot_sub_histograms(integral_outer_by_category, 'Integral of difference', 'histogram_integral_outer', dirPath)
+plot_sub_histograms(integral_inner_by_category, 'Integral of difference', 'histogram_integral_inner', dirPath)
 
 # Categories proportion
 categoriesTiles, countsTiles = np.unique(all_real_valid[~np.isnan(all_real_valid)], return_counts=True)

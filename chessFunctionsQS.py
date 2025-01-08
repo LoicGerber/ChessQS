@@ -491,7 +491,7 @@ def create_tile_index_grid(image_shape, tile_size, overlap):
             idx += 1
 
     return grid
-
+kdjfkdjf
 def find_neighbors(grid, tile_idx, tiles, ignored_tiles, tile_size, overlap):
     # Get the grid index of the tile
     tile_coords = tiles[tile_idx]
