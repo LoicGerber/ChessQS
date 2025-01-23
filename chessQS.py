@@ -25,9 +25,6 @@ overlap     = 100           # overlap between tiles
 threshold   = 25            # threshold to define poorly informed tiles
 maxTileSize = [2000, 2000]  # maximum length of merged tiles, in pixels 
 
-# Variable weights
-varWeights = [1, 0.1]
-
 # Kernel parameters
 ki_params = {
     'path':          dirPath,   # path to saving directory
@@ -62,10 +59,8 @@ plot = False
 # Load images
 ti_file_path = os.path.join(dirPath, tiName)
 ti           = load_image(ti_file_path)
-ti           = ti * np.sqrt(varWeights)
 di_file_path = os.path.join(dirPath, diName)
 di           = load_image(di_file_path)
-di           = di * np.sqrt(varWeights)
 
 # Create the kernel
 ki = createKernel(**ki_params)
