@@ -15,15 +15,21 @@ def load_image(file_path):
     elif file_ext == '.h5':
         with h5py.File(file_path, 'r') as f:
             image_data = f['/image_data'][:]
-            if image_data.ndim == 3:
-                return np.transpose(image_data, (1, 0, 2))
-            else:
-                return image_data
+            return image_data
+            #if image_data.ndim == 3:
+            #    return np.transpose(image_data, (1, 0, 2))
+            #else:
+            #    return image_data
     else:
         raise ValueError("Unsupported file format. Choose either 'tif' or 'h5'.")
 
 def prepare_tiles(ti, di, tile_size, overlap):
     tiles = create_chessboard_tiles(ti.shape[:2], tile_size, overlap)
+    if ti.ndim == 3:
+        ti = ti[:,:,0]
+    if di.ndim == 3:
+        di = di[:,:,0]
+        
     tile_analysis = analyze_tiles(tiles, ti, di)
     
     # Identify different types of ignored tiles
@@ -50,6 +56,11 @@ def create_chessboard_tiles(image_shape, tile_size, overlap):
     return tiles
 
 def analyze_tiles(tiles, ti, di):
+    if ti.ndim == 3:
+        ti = ti[:,:,0]
+    if di.ndim == 3:
+        di = di[:,:,0]
+        
     results = []
     for idx, (i_start, j_start, i_end, j_end) in enumerate(tiles):
         ti_tile = ti[i_start:i_end, j_start:j_end]
@@ -75,6 +86,8 @@ def analyze_tiles(tiles, ti, di):
 
 def visualize_tiles(image, tiles, ignored_tiles, tiles_with_nothing, tiles_no_nans_in_di, map, tileNum):
     fig, ax = plt.subplots(1, figsize=(10, 10))
+    if image.ndim == 3:
+        image = image[:,:,0]
     ax.imshow(image, cmap=map)
     
     for idx, (i_start, j_start, i_end, j_end) in enumerate(tiles):
@@ -102,10 +115,12 @@ def visualize_tiles(image, tiles, ignored_tiles, tiles_with_nothing, tiles_no_na
 
 def visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap, map, tileNum):
     fig, ax = plt.subplots(1, figsize=(12, 12))
+    if di.ndim == 3:
+        di = di[:,:,0]
     ax.imshow(di, cmap=map)
 
     # Generate the chessboard pattern
-    white_tiles, black_tiles = generate_chessboard_pattern(di.shape, tiles, tile_size, overlap)
+    white_tiles, black_tiles = generate_chessboard_pattern(di.shape[:2], tiles, tile_size, overlap)
     
     # Convert ignored_tiles to a set
     ignored_tiles_set = set(ignored_tiles)
@@ -172,7 +187,7 @@ def generate_chessboard_pattern(image_shape, tiles, tile_size, overlap):
     return white_tiles, black_tiles
 
 def identify_poorly_informed_tiles(image, tiles, tile_analysis, empty_tiles, ignored_tiles, threshold, plot):
-    image_shape = image.shape
+    image_shape = image.shape[:2]
     # Generate maps and statistics
     (informed_map, nan_map, map_nan_gt_informed, 
             map_nan_no_informed, map_low_informed_ti, 
@@ -327,7 +342,7 @@ def generate_maps(image_shape, tiles, tile_analysis, empty_tiles, threshold):
             tiles_low_informed_ti_no_nan_di, total_tiles)
 
 def iterative_merge_poorly_informed_tiles(ti, di, tiles, tile_analysis, poorly_informed_tiles, nan_gt_informed_tiles, empty_tiles, ignored_tiles, tile_size, overlap, threshold, maxTileSize, max_iterations):
-    grid = create_tile_index_grid(ti.shape, tile_size, overlap)
+    grid = create_tile_index_grid(ti.shape[:2], tile_size, overlap)
     mod_ti_tiles = tiles.copy()
     mod_di_tiles = tiles.copy()
 
@@ -491,7 +506,7 @@ def create_tile_index_grid(image_shape, tile_size, overlap):
             idx += 1
 
     return grid
-kdjfkdjf
+
 def find_neighbors(grid, tile_idx, tiles, ignored_tiles, tile_size, overlap):
     # Get the grid index of the tile
     tile_coords = tiles[tile_idx]
@@ -558,6 +573,9 @@ def visualize_modified_tiles(image, original_tiles, mod_ti_tiles, mod_di_tiles, 
             print(f"Tile index {tile_index} is not a differing tile in either `ti` or `di`.")
             return
 
+    if image.ndim == 3:
+        image = image[:,:,0]
+    
     # Plot `ti` tiles
     plot_tiles(image, original_tiles, mod_ti_tiles, ignored_tiles, differing_ti_tiles, map,
                'TI')
@@ -567,6 +585,9 @@ def visualize_modified_tiles(image, original_tiles, mod_ti_tiles, mod_di_tiles, 
                'DI')
 
 def plot_tiles(image, original_tiles, modified_tiles, ignored_tiles, differing_tiles, map, title):
+    if image.ndim == 3:
+        image = image[:,:,0]
+    
     fig, ax = plt.subplots(1, figsize=(12, 12))
     ax.imshow(image, cmap=map)
 
@@ -606,7 +627,7 @@ def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ig
     cumulative_simulation = di.copy()
     
     # Generate chessboard pattern
-    white_tiles, black_tiles = generate_chessboard_pattern(di.shape, tiles, tile_size, overlap)
+    white_tiles, black_tiles = generate_chessboard_pattern(di.shape[:2], tiles, tile_size, overlap)
     
     # Filter out ignored tiles
     white_tiles = sorted(white_tiles - set(ignored_tiles))
@@ -671,5 +692,7 @@ def run_tile_simulation(mod_coords, og_coords, ti, di, ki, params):
     params_list = list(params)
     args.extend(params_list)
     simulation, index, *_ = g2s(*args)
+    if simulation.ndim == 3:
+        simulation = simulation[:,:,0]
     return simulation
 
