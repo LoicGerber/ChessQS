@@ -137,10 +137,10 @@ for idx, (y, x, max_informed_pixel, reconstructed_tile) in enumerate(best_inform
     di[gap[0]:gap[1], gap[2]:gap[3]] = np.where(di[gap[0]:gap[1], gap[2]:gap[3]] != -2, np.nan, di[gap[0]:gap[1], gap[2]:gap[3]])
     
     fig, (ax1, ax2) = plt.subplots(1,2,figsize=(7,4))
-    ax1.imshow(ti,cmap='turbo')
+    ax1.imshow(ti,cmap='turbo', interpolation='none')
     ax1.set_title('Training image');
     ax1.axis('off');
-    ax2.imshow(di,cmap='turbo')
+    ax2.imshow(di,cmap='turbo', interpolation='none')
     ax2.set_title('Simulation setup');
     ax2.axis('off');
     plt.show()
@@ -168,10 +168,10 @@ for idx, (y, x, max_informed_pixel, reconstructed_tile) in enumerate(best_inform
             # f.create_dataset('image_data', data=simulation)
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7, 4))
-        ax1.imshow(diFull, cmap='turbo')
+        ax1.imshow(diFull, cmap='turbo', interpolation='none')
         ax1.set_title('Real image')
         ax1.axis('off')
-        ax2.imshow(simulation, cmap='turbo')
+        ax2.imshow(simulation, cmap='turbo', interpolation='none')
         ax2.set_title(f'Simulation result - Realization {realization_idx}')
         ax2.axis('off')
         plt.show()

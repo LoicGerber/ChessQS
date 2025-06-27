@@ -46,6 +46,10 @@ g2s_params = (
     '-j',   0.5     # computing power
 )
 
+# Simulation path parameters
+inwardSim  = True
+sp_exclude = [-2]  # value to exclude for simulation path generation
+
 # GeoTIFF parameters
 pixel_size_x = 2                    # x-axis pixel size, positive
 pixel_size_y = 2                    # y-axis pixel size, positive
@@ -93,7 +97,7 @@ if plot == True:
 
 # Run simulations based on the modified tiles
 final_simulation_result = run_simulations(
-    ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ignored_tiles, ki, g2s_params, tile_size, overlap
+    ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ignored_tiles, ki, g2s_params, tile_size, overlap, inwardSim, sp_exclude
 )
 
 # Save the final result as a GeoTIFF file

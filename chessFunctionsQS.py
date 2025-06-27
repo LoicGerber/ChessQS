@@ -3,10 +3,16 @@ import numpy as np
 import tifffile as tf
 import h5py
 import os
+import time
+import psutil
+from scipy.ndimage import distance_transform_edt
+from multiprocessing import Process, Manager
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as mcolors
 from g2s import g2s
+
+random.seed(42)
 
 def load_image(file_path):
     file_ext = os.path.splitext(file_path)[1]
@@ -567,7 +573,7 @@ def visualize_modified_tiles(image, original_tiles, mod_ti_tiles, mod_di_tiles, 
     if tile_index is not None:
         if tile_index in differing_ti_tiles:
             differing_ti_tiles = [tile_index]  # Only keep the specific differing tile for `ti`
-        elif tile_index in differing_di_tiles:
+        if tile_index in differing_di_tiles:
             differing_di_tiles = [tile_index]  # Only keep the specific differing tile for `di`
         else:
             print(f"Tile index {tile_index} is not a differing tile in either `ti` or `di`.")
@@ -623,7 +629,7 @@ def plot_tiles(image, original_tiles, modified_tiles, ignored_tiles, differing_t
     ax.axis('off')
     plt.show()
 
-def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ignored_tiles, ki, g2s_params, tile_size, overlap):
+def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ignored_tiles, ki, g2s_params, tile_size, overlap, inwardSim, sp_exclude):
     cumulative_simulation = di.copy()
     
     # Generate chessboard pattern
@@ -634,7 +640,9 @@ def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ig
     black_tiles = sorted(black_tiles - set(ignored_tiles))
 
     # Shuffle the order of white and black tiles randomly
+    random.seed(42)  # For reproducibility
     random.shuffle(white_tiles)
+    random.seed(42)  # For reproducibility
     random.shuffle(black_tiles)
 
     # Run simulations on white tiles first
@@ -651,9 +659,9 @@ def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ig
 
         if analysis['num_nan_di'] == 0:
             continue
-
+                            
         print(f"Running simulation on white tile {idx}.")
-        simulation = run_tile_simulation(ti_coords, di_coords, ti, cumulative_simulation, ki, g2s_params)
+        simulation = run_tile_simulation(ti_coords, di_coords, ti, cumulative_simulation, ki, g2s_params, inwardSim, sp_exclude)
 
         # Update cumulative_simulation with the result of this simulation
         i_start, j_start, i_end, j_end = di_coords
@@ -673,26 +681,119 @@ def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ig
 
         if analysis['num_nan_di'] == 0:
             continue
-
+              
         print(f"Running simulation on black tile {idx}.")
-        simulation = run_tile_simulation(ti_coords, di_coords, ti, cumulative_simulation, ki, g2s_params)
+        simulation = run_tile_simulation(ti_coords, di_coords, ti, cumulative_simulation, ki, g2s_params, inwardSim, sp_exclude)
 
         # Update cumulative_simulation with the result of this simulation
         i_start, j_start, i_end, j_end = di_coords
         cumulative_simulation[i_start:i_end, j_start:j_end] = simulation
+    
+    if cumulative_simulation.ndim == 3:
+        cumulative_simulation = cumulative_simulation[:,:,0]
 
     return cumulative_simulation
 
-def run_tile_simulation(mod_coords, og_coords, ti, di, ki, params):
-    mod_i_start, mod_j_start, mod_i_end, mod_j_end = mod_coords
-    og_i_start, og_j_start, og_i_end, og_j_end = og_coords
-    ti_tile = ti[mod_i_start:mod_i_end, mod_j_start:mod_j_end]
-    di_tile = di[og_i_start:og_i_end, og_j_start:og_j_end] 
-    args = ['-ti', ti_tile, '-di', di_tile, '-ki', ki]
+def run_tile_simulation(ti_coords, di_coords, ti, di, ki, params, inwardSim, sp_exclude):
+    ti_i_start, ti_j_start, ti_i_end, ti_j_end = ti_coords
+    di_i_start, di_j_start, di_i_end, di_j_end = di_coords
+    ti_tile = ti[ti_i_start:ti_i_end, ti_j_start:ti_j_end]
+    di_tile = di[di_i_start:di_i_end, di_j_start:di_j_end]
+    
+    sp = generate_simulation_path(di_tile, inwardSim, sp_exclude)
+    
+    args = ['-ti', ti_tile, '-di', di_tile, '-ki', ki, '-sp', sp]
     params_list = list(params)
     args.extend(params_list)
     simulation, index, *_ = g2s(*args)
-    if simulation.ndim == 3:
-        simulation = simulation[:,:,0]
     return simulation
 
+def generate_simulation_path(image_with_gaps, inwardSim, sp_exclude):
+    # Mask for valid and gap pixels
+    valid_mask = (~np.isnan(image_with_gaps[:,:,0])) & (image_with_gaps[:,:,0] != sp_exclude)
+    gap_mask = np.isnan(image_with_gaps[:,:,0])
+    
+    if inwardSim:
+        # Compute distance transform, treating valid pixels as "background"
+        distances = distance_transform_edt(~valid_mask)
+        # Use distances for sorting gap pixels
+        gap_distances = distances[gap_mask]
+        gap_flat_indices = np.flatnonzero(gap_mask)
+        # Sort indices based on distances
+        sorted_indices = gap_flat_indices[np.argsort(gap_distances)]
+    else:
+        # Random shuffle of gap indices
+        gap_flat_indices = np.flatnonzero(gap_mask)
+        random.seed(42)  # For reproducibility
+        random.shuffle(gap_flat_indices)
+        sorted_indices = gap_flat_indices
+    
+    # Initialize simulation path array
+    simulation_path = np.full_like(image_with_gaps[:,:,0], -np.inf, dtype=np.float32)
+    
+    # Assign simulation order to the gap pixels
+    for order, idx in enumerate(sorted_indices, start=1):
+        simulation_path.flat[idx] = order
+    
+    return simulation_path
+
+def run_tile_simulation_stall(mod_coords, og_coords, ti, di, ki, params, sp, timeout=3000, idle_limit=60, max_retries=3):
+    mod_i_start, mod_j_start, mod_i_end, mod_j_end = mod_coords
+    og_i_start, og_j_start, og_i_end, og_j_end = og_coords
+    ti_tile = ti[mod_i_start:mod_i_end, mod_j_start:mod_j_end]
+    di_tile = di[og_i_start:og_i_end, og_j_start:og_j_end]
+    args = ['-ti', ti_tile, '-di', di_tile, '-ki', ki, '-sp', sp]
+    args.extend(list(params))
+
+    def run_g2s(args, result):
+        """Function to execute g2s in a separate process."""
+        simulation, *_ = g2s(*args)
+        result.append(simulation)
+
+    retries = 0
+    while retries <= max_retries:
+        manager = Manager()
+        result = manager.list()
+        process = Process(target=run_g2s, args=(args, result))
+        process.start()
+
+        process_start_time = time.time()
+        last_active_time = time.time()
+
+        process_pid = process.pid
+        try:
+            proc = psutil.Process(process_pid)
+        except psutil.NoSuchProcess:
+            process.join()
+            retries += 1
+            continue
+
+        while process.is_alive():
+            try:
+                cpu_usage = proc.cpu_percent(interval=1)
+                if cpu_usage > 0.5:
+                    last_active_time = time.time()
+                elif time.time() - last_active_time > idle_limit:
+                    print(f"Simulation stalled, retrying... (Attempt {retries + 1}/{max_retries})")
+                    process.terminate()
+                    process.join()
+                    break
+            except psutil.NoSuchProcess:
+                break
+
+            if time.time() - process_start_time > timeout:
+                print(f"Simulation timed out, retrying... (Attempt {retries + 1}/{max_retries})")
+                process.terminate()
+                process.join()
+                break
+        else:
+            # Process completed successfully
+            process.join()
+            if result:
+                return result[0]
+            else:
+                raise RuntimeError("Simulation completed but returned no result.")
+
+        retries += 1
+
+    raise RuntimeError(f"Simulation failed after {max_retries} retries.")
