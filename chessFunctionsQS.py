@@ -694,7 +694,7 @@ def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ig
 
     return cumulative_simulation
 
-def run_tile_simulation(ti_coords, di_coords, ti, di, ki, params, inwardSim, sp_exclude):
+def run_tile_simulation(ti_coords, di_coords, ti, di, ki, g2s_params, inwardSim, sp_exclude):
     ti_i_start, ti_j_start, ti_i_end, ti_j_end = ti_coords
     di_i_start, di_j_start, di_i_end, di_j_end = di_coords
     ti_tile = ti[ti_i_start:ti_i_end, ti_j_start:ti_j_end]
@@ -702,16 +702,40 @@ def run_tile_simulation(ti_coords, di_coords, ti, di, ki, params, inwardSim, sp_
     
     sp = generate_simulation_path(di_tile, inwardSim, sp_exclude)
     
-    args = ['-ti', ti_tile, '-di', di_tile, '-ki', ki, '-sp', sp]
-    params_list = list(params)
+    di_tile_clean = di_tile.copy()
+    if di_tile_clean.ndim == 3:
+        di_clean = di_tile_clean[:,:,0]
+    else:
+        di_clean = di_tile_clean
+    di_clean[di_clean == sp_exclude] = np.nan  # Replace excluded pixels with NaN
+    if di_tile_clean.ndim == 3:
+        di_tile_clean[:,:,0] = di_clean
+    else:
+        di_tile_clean = di_clean
+    
+    args = ['-ti', ti_tile, '-di', di_tile_clean, '-ki', ki, '-sp', sp]
+    params_list = list(g2s_params)
     args.extend(params_list)
     simulation, index, *_ = g2s(*args)
+    
+    if simulation.ndim == 3:
+        sim_full = simulation[:,:,0]
+    else:
+        sim_full = simulation
+    sim_full[di_clean == sp_exclude] = sp_exclude  # Restore excluded pixels to their original value
+    if simulation.ndim == 3:
+        simulation[:,:,0] = sim_full
+    else:
+        simulation = sim_full
+    
     return simulation
 
 def generate_simulation_path(image_with_gaps, inwardSim, sp_exclude):
     # Mask for valid and gap pixels
-    valid_mask = (~np.isnan(image_with_gaps[:,:,0])) & (image_with_gaps[:,:,0] != sp_exclude)
-    gap_mask = np.isnan(image_with_gaps[:,:,0])
+    if image_with_gaps.ndim == 3:
+        image_with_gaps = image_with_gaps[:,:,0]
+    valid_mask = (~np.isnan(image_with_gaps)) & (image_with_gaps != sp_exclude)
+    gap_mask = np.isnan(image_with_gaps)
     
     if inwardSim:
         # Compute distance transform, treating valid pixels as "background"
@@ -729,12 +753,12 @@ def generate_simulation_path(image_with_gaps, inwardSim, sp_exclude):
         sorted_indices = gap_flat_indices
     
     # Initialize simulation path array
-    simulation_path = np.full_like(image_with_gaps[:,:,0], -np.inf, dtype=np.float32)
+    simulation_path = np.full_like(image_with_gaps, -np.inf, dtype=np.float32)
     
     # Assign simulation order to the gap pixels
     for order, idx in enumerate(sorted_indices, start=1):
         simulation_path.flat[idx] = order
-    
+
     return simulation_path
 
 def run_tile_simulation_stall(mod_coords, og_coords, ti, di, ki, params, sp, timeout=3000, idle_limit=60, max_retries=3):
