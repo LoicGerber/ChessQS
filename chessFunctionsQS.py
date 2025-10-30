@@ -722,7 +722,7 @@ def run_tile_simulation(ti_coords, di_coords, ti, di, ki, g2s_params, inwardSim,
         sim_full = simulation[:,:,0]
     else:
         sim_full = simulation
-    sim_full[di_clean == sp_exclude] = sp_exclude  # Restore excluded pixels to their original value
+    sim_full[di_tile == sp_exclude] = sp_exclude  # Restore excluded pixels to their original value
     if simulation.ndim == 3:
         simulation[:,:,0] = sim_full
     else:
