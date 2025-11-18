@@ -1,7 +1,7 @@
 import os
-import math
 import numpy as np
 import gstools as gs
+import math
 from scipy.spatial.distance import pdist
 from scipy.stats import binned_statistic
 from scipy.integrate import simps
@@ -141,7 +141,7 @@ def compute_rmse(real, sim):
     if real.shape != sim.shape:
         raise ValueError("Input images must have the same dimensions.")
     mask = ~np.isnan(real) & ~np.isnan(sim)
-    rmse = np.sqrt(np.mean((real[mask] - sim[mask]) ** 2))
+    rmse = np.sqrt(np.nanmean((real[mask] - sim[mask]) ** 2))
 
     return rmse
 
@@ -154,59 +154,97 @@ def compute_hamming_distance(real, sim):
     
     return hamming_distance
 
-def compute_binned_variogram(image, sample_percentage, num_bins, max_lag):
+def compute_binned_variogram_OLD(image, sample_percentage, num_bins, max_lag, seed, real):
+    if seed is not None:
+        np.random.seed(seed)
     variograms = {}
-    
     # Get the unique categories in the image, excluding NaN
-    categories = np.unique(image)
-    categories = categories[~np.isnan(categories)]
-    
-    # Generate coordinates for all points in the image
+    categories = np.unique(image[~np.isnan(image)])
+    # Generate coordinates for all valid (non-NaN) points in the image
     coords = np.column_stack(np.nonzero(~np.isnan(image)))
-    
     for category in categories:
-        print(f'  Computing variogram for category {int(category)}...')
-        
-        # Create an indicator function for the current category (1 for the category, 0 otherwise)
+        # print(f'Computing variogram for category {int(category)}...')
+        # Create an indicator function for the current category (1 for category, 0 otherwise)
         indicator_values = (image == category).astype(int)
-        
-        # Flatten the indicator values to match the coordinates
+        real_values = (real == category).astype(int)
+        # Flatten indicator values to match available coordinates
         indicator_values = indicator_values[~np.isnan(image)]
-        
+        real_values = real_values[~np.isnan(real)]
         # Calculate the number of points to sample
-        num_points = int(len(coords) * sample_percentage)
-        print(f'   Selected {num_points} points...')
-        
-        if num_points < 1:
-            print(f'Warning: No value for category {category} in image. Skipping...')
-            continue
-        
-        # Randomly sample a percentage of the points
+        num_points = max(1, int(len(coords) * sample_percentage))  # Ensure at least 1 point is sampled
+        # Randomly sample a subset of the points
         indices = np.random.choice(len(coords), size=num_points, replace=False)
         sampled_coords = coords[indices]
         sampled_values = indicator_values[indices]
-        
-        # Compute pairwise distances (lags) and semivariances for all selected points
+        # Compute pairwise distances (lags)
         pairwise_distances = pdist(sampled_coords)
-        pairwise_semivariance = 0.5 * pdist(sampled_values[:, np.newaxis], metric='sqeuclidean')
-        
-        # Filter out pairs with distances greater than max_lag
+        # Compute indicator semivariance directly: (I(x) - I(y))^2
+        i_diff = (sampled_values[:, None] != sampled_values[None, :]) * 1
+        # i_diff = sampled_values[:, None] - sampled_values[None, :]
+        pairwise_semivariance = 0.5 * (i_diff ** 2)[np.triu_indices(num_points, k=1)]
+        # Filter by max_lag
         valid_indices = pairwise_distances <= max_lag
         filtered_distances = pairwise_distances[valid_indices]
         filtered_semivariance = pairwise_semivariance[valid_indices]
-        
         if len(filtered_distances) == 0:
             print(f'Warning: No pairs found within max lag for category {category}.')
             continue
-        
-        # Bin the distances and compute the mean semivariance in each bin
+        # Bin distances and compute mean semivariance per bin
         bin_edges = np.linspace(0, max_lag, num_bins + 1)
         bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
         binned_semivariance, _, _ = binned_statistic(filtered_distances, filtered_semivariance, statistic='mean', bins=bin_edges)
-        
-        # Store the binned variogram data for this category
-        variograms[category] = (bin_centers, binned_semivariance)
-    
+        realVar = np.nanvar(real_values)
+        # Store the binned variogram for this category
+        variograms[category] = (bin_centers, binned_semivariance/realVar)
+    return variograms
+
+def compute_binned_variogram(image, sample_percentage, num_bins, max_lag, seed, real=None):
+    if seed is not None:
+        np.random.seed(seed)
+
+    variograms = {}
+    valid_mask = ~np.isnan(image)
+    coords = np.column_stack(np.nonzero(valid_mask))
+    categories = np.unique(image[valid_mask])
+
+    for category in categories:
+        # Indicator values: 1 for this category, 0 elsewhere
+        indicator_full = (image == category).astype(int)
+        indicator = indicator_full[valid_mask]
+        if real is not None:
+            real_indicator_full = (real == category).astype(int)
+            real_indicator = real_indicator_full[valid_mask]
+
+        # Sample points
+        num_points = max(1, int(len(coords) * sample_percentage))
+        idx = np.random.choice(len(coords), size=num_points, replace=False)
+        sampled_coords = coords[idx]
+        sampled_values = indicator[idx]
+
+        # Pairwise distances and semivariances
+        dists = pdist(sampled_coords)
+        diff_matrix = (sampled_values[:, None] != sampled_values[None, :]).astype(float)
+        semivariances = 0.5 * diff_matrix[np.triu_indices(num_points, k=1)]
+
+        # Filter for max lag
+        valid = dists <= max_lag
+        if not np.any(valid):
+            print(f"Warning: no pairs within max_lag for category {category}")
+            continue
+
+        # Bin and normalize
+        bin_edges = np.linspace(0, max_lag, num_bins+1)
+        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+        binned_gamma, _, _ = binned_statistic(
+            dists[valid], semivariances[valid],
+            statistic="mean", bins=bin_edges
+        )
+        if real is not None:
+            real_var = np.nanvar(real_indicator)
+            
+        # Normalize by variance p(1-p) of the real indicator image to obtain normalized indicator variogram
+        variograms[category] = (bin_centers, (binned_gamma / real_var) if real is not None else binned_gamma)
+
     return variograms
 
 def plot_binned_variogram(variograms_real, variograms_sim, outDir):
@@ -242,19 +280,54 @@ def plot_binned_variogram(variograms_real, variograms_sim, outDir):
         plt.savefig(outName)
         plt.show()
 
-def compute_rmse_per_category(variograms_real, variograms_sim):
+def compute_rmse_all_tiles(variograms_real, variograms_sim, max_lag=None):
+    all_rmses = []
+
+    for tile_index in variograms_real:
+        real_categories = variograms_real[tile_index]
+        sim_realisations = variograms_sim[tile_index]
+
+        tile_rmses = []
+
+        for realisation in sim_realisations:
+            rmse = compute_rmse_per_category(real_categories, sim_realisations[realisation], max_lag)
+            tile_rmses.append(rmse)
+
+        all_rmses.append(tile_rmses)
+
+    return all_rmses
+
+
+def compute_rmse_per_category(variograms_real, variograms_sim, max_lag=None):
     rmse_per_category = {}
+
     for category in variograms_real.keys():
         real_lags, real_values = variograms_real[category]
         sim_lags, sim_values = variograms_sim.get(category, (None, None))
 
-        if sim_values is None or len(sim_values) != len(real_values):
-            print(f"Warning: Category {category} missing or size mismatch in simulated variograms.")
+        if sim_values is None:
+            print(f"Warning: Category {category} missing in simulated variograms.")
             continue
 
-        # Compute RMSE for this category
-        rmse = np.sqrt(np.mean((real_values - sim_values) ** 2))
+        # Remove NaNs from both real and sim values (safely)
+        mask = ~np.isnan(real_values) & ~np.isnan(sim_values)
+        real_lags = real_lags[mask]
+        real_values = real_values[mask]
+        sim_values = sim_values[mask]
+
+        if max_lag is not None:
+            lag_mask    = real_lags <= max_lag
+            real_lags   = real_lags[lag_mask]
+            real_values = real_values[lag_mask]
+            sim_values  = sim_values[lag_mask]
+
+        if len(real_values) == 0 or len(sim_values) != len(real_values):
+            print(f"Warning: Category {category} has no valid data after filtering.")
+            continue
+
+        rmse = np.sqrt(np.nanmean((real_values - sim_values) ** 2))
         rmse_per_category[category] = rmse
+
     return rmse_per_category
 
 def compute_integral_diff_per_category(variograms_real, variograms_sim):
@@ -273,14 +346,19 @@ def compute_integral_diff_per_category(variograms_real, variograms_sim):
         int_diff_category[category] = int_diff
     return int_diff_category
 
-def group_by_category(results, key):
+def group_by_category(results, key=None):
     grouped_by_category = {}
-    for result in results:
-        for category, value in result[key].items():
-            if category not in grouped_by_category:
-                grouped_by_category[category] = []
-            grouped_by_category[category].append(value)
-    
+    if key is not None:
+        for result in results:
+            if key in result:
+                for category, value in result[key].items():
+                    grouped_by_category.setdefault(category, []).append(value)
+    else:
+        for tile in results:
+            for realisation in tile:
+                for category, value in realisation.items():
+                    grouped_by_category.setdefault(category, []).append(value)
+
     return grouped_by_category
 
 def plot_histograms(grouped_data, title_prefix, xlabel, file_prefix, dirPath):
@@ -296,42 +374,11 @@ def plot_histograms(grouped_data, title_prefix, xlabel, file_prefix, dirPath):
         plt.savefig(os.path.join(dirPath, f'{file_prefix}_category_{int(category)}.png'))
         plt.show()
 
-def plot_sub_histograms(grouped_data, xlabel, file_name, dirPath):
-    # Determine the number of rows and columns for subplots
-    num_categories = len(grouped_data)
-    cols = math.ceil(math.sqrt(num_categories))
-    rows = math.ceil(num_categories / cols)
-
-    # Create a figure with subplots
-    fig, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 4))
-    axes = axes.flatten()  # Flatten the axes array for easy indexing
-
-    # Plot each category in its subplot
-    for idx, (category, values) in enumerate(grouped_data.items()):
-        ax = axes[idx]
-        ax.hist(values, bins=10, edgecolor='black', alpha=0.7)
-        ax.set_title(f'Category {int(category)}')
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel('Frequency')
-        ax.grid(True)
-
-    # Hide any unused subplots
-    for idx in range(len(grouped_data), len(axes)):
-        axes[idx].axis('off')
-
-    # Adjust layout and save the figure
-    fig.tight_layout()
-    output_path = os.path.join(dirPath, f'{file_name}.png')
-    plt.savefig(output_path)
-    plt.show()
-
-    return output_path
-
-def compute_metrics(region_real, region_sim, label, sample_percentage, num_bins, max_lag):
+def compute_metrics(region_real, region_sim, label, sample_percentage, num_bins, max_lag, seed, real):
         print(f"{label}: Real image")
-        variograms_real = compute_binned_variogram(region_real, sample_percentage, num_bins, max_lag)
+        variograms_real = compute_binned_variogram(region_real, sample_percentage, num_bins, max_lag, seed, real)
         print(f"{label}: Simulated image")
-        variograms_sim = compute_binned_variogram(region_sim, sample_percentage, num_bins, max_lag)
+        variograms_sim = compute_binned_variogram(region_sim, sample_percentage, num_bins, max_lag, seed, real)
 
         # Compute RMSE for variograms
         rmse_variogram = compute_rmse_per_category(variograms_real, variograms_sim)
@@ -351,5 +398,107 @@ def compute_metrics(region_real, region_sim, label, sample_percentage, num_bins,
         # Compute Cohen's Kappa
         kappa = cohen_kappa_score(real_valid, sim_valid)
 
-        return accuracy, kappa, rmse_variogram, integral_difference, real_valid, sim_valid
+        return accuracy, kappa, rmse_variogram, integral_difference, real_valid, sim_valid, variograms_real, variograms_sim
+
+def plot_sub_histograms(grouped_data, nugget, xlabel, file_name, dirPath):
+    # Determine the number of rows and columns for subplots
+    num_categories = len(grouped_data)
+    cols = math.ceil(math.sqrt(num_categories))
+    rows = math.ceil(num_categories / cols)
+
+    # Create a figure with subplots
+    fig, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 4))
+    axes = axes.flatten()  # Flatten the axes array for easy indexing
+
+    # Plot each category in its subplot
+    for idx, (category, values) in enumerate(grouped_data.items()):
+        ax = axes[idx]
+        ax.hist(values, bins=20, edgecolor='black', alpha=0.7)
+        # Compute mean nugget metric for this category
+        mean_nugget = np.nanmean(nugget[category])
+
+        # Add vertical line for nugget integral
+        # ax.axvline(mean_nugget_integral, color='red', linestyle='dashed', linewidth=2, label='Mean Nugget Integral')
+
+        ax.set_title(f'Category {int(category)} - Random sim {xlabel}: {mean_nugget:.3f}')
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel('Frequency')
+        ax.set_xlim(left=0)
+        ax.grid(True)
+
+    # Hide any unused subplots
+    for idx in range(len(grouped_data), len(axes)):
+        axes[idx].axis('off')
+
+    # Adjust layout and save the figure
+    fig.tight_layout()
+    output_path = os.path.join(dirPath, f'{file_name}.png')
+    plt.savefig(output_path)
+    plt.show()
+
+    return output_path
+
+def apply_nugget_effect(image, categories, proportions, seed):
+    if seed is not None:
+        np.random.seed(seed)
+    modified_image = image.copy()
+    nan_mask = np.isnan(modified_image)
+    random_values = np.random.choice(categories, size=nan_mask.sum(), p=proportions)
+    modified_image[nan_mask] = random_values
+    
+    return modified_image
+
+def compute_nugget_metrics(all_vario_real_whole, all_vario_nugget, max_lag=None):
+    nugget_rmse = {category: [] for category in range(-1, 6)}
+    nugget_int  = {category: [] for category in range(-1, 6)}
+
+    for tile in all_vario_real_whole.keys():
+        if tile not in all_vario_nugget:
+            print(f"Warning: Tile {tile} not found in nugget variograms.")
+            continue
+
+        for category in all_vario_real_whole[tile].keys():
+            if category not in all_vario_nugget[tile]:
+                print(f"Warning: Category {category} missing in tile {tile}.")
+                continue
+
+            # Extract bin centers and semivariances
+            real_lags, real_values = all_vario_real_whole[tile][category]
+            sim_lags,  sim_values  = all_vario_nugget[tile].get(category, (None, None))
+
+            # Ensure valid values
+            if sim_values is None or len(real_values) != len(sim_values):
+                print(f"Warning: Category {category} missing or size mismatch in tile {tile}.")
+                continue
+            
+            # Ensure lag arrays match before integration
+            if not np.array_equal(real_lags, sim_lags):
+                print(f"Warning: Mismatched lag values for category {category} in tile {tile}.")
+                continue
+            
+            # Filter out NaNs
+            mask = ~np.isnan(real_values) & ~np.isnan(sim_values)
+            real_lags = real_lags[mask]
+            real_values = real_values[mask]
+            sim_values = sim_values[mask]
+
+            # If max_lag is provided, filter all lags <= max_lag
+            if max_lag is not None:
+                lag_mask    = real_lags <= max_lag
+                real_lags   = real_lags[lag_mask]
+                real_values = real_values[lag_mask]
+                sim_values  = sim_values[lag_mask]
+
+            # Compute RMSE
+            rmse = np.sqrt(np.nanmean((real_values - sim_values) ** 2))
+
+            # Compute integral of the absolute difference
+            int_diff = simps(np.abs(real_values - sim_values), real_lags)
+
+            # Store results in category-wise lists
+            nugget_rmse[category].append(rmse)
+            nugget_int[category].append(int_diff)
+    
+    return nugget_rmse, nugget_int
+
 

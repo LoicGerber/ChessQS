@@ -629,7 +629,7 @@ def plot_tiles(image, original_tiles, modified_tiles, ignored_tiles, differing_t
     ax.axis('off')
     plt.show()
 
-def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ignored_tiles, ki, g2s_params, tile_size, overlap, inwardSim, sp_exclude):
+def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ignored_tiles, ki, g2s_params, tile_size, overlap, inwardSim, sp_exclude, seed):
     cumulative_simulation = di.copy()
     
     # Generate chessboard pattern
@@ -640,9 +640,11 @@ def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ig
     black_tiles = sorted(black_tiles - set(ignored_tiles))
 
     # Shuffle the order of white and black tiles randomly
-    random.seed(42)  # For reproducibility
+    if seed is not None:
+        random.seed(seed)  # For reproducibility
     random.shuffle(white_tiles)
-    random.seed(42)  # For reproducibility
+    if seed is not None:
+        random.seed(seed)  # For reproducibility
     random.shuffle(black_tiles)
 
     # Run simulations on white tiles first
@@ -661,7 +663,7 @@ def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ig
             continue
                             
         print(f"Running simulation on white tile {idx}.")
-        simulation = run_tile_simulation(ti_coords, di_coords, ti, cumulative_simulation, ki, g2s_params, inwardSim, sp_exclude)
+        simulation = run_tile_simulation(ti_coords, di_coords, ti, cumulative_simulation, ki, g2s_params, inwardSim, sp_exclude, seed)
 
         # Update cumulative_simulation with the result of this simulation
         i_start, j_start, i_end, j_end = di_coords
@@ -683,7 +685,7 @@ def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ig
             continue
               
         print(f"Running simulation on black tile {idx}.")
-        simulation = run_tile_simulation(ti_coords, di_coords, ti, cumulative_simulation, ki, g2s_params, inwardSim, sp_exclude)
+        simulation = run_tile_simulation(ti_coords, di_coords, ti, cumulative_simulation, ki, g2s_params, inwardSim, sp_exclude, seed)
 
         # Update cumulative_simulation with the result of this simulation
         i_start, j_start, i_end, j_end = di_coords
@@ -694,24 +696,50 @@ def run_simulations(ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ig
 
     return cumulative_simulation
 
-def run_tile_simulation(ti_coords, di_coords, ti, di, ki, params, inwardSim, sp_exclude):
+def run_tile_simulation(ti_coords, di_coords, ti, di, ki, g2s_params, inwardSim, sp_exclude, seed):
     ti_i_start, ti_j_start, ti_i_end, ti_j_end = ti_coords
     di_i_start, di_j_start, di_i_end, di_j_end = di_coords
     ti_tile = ti[ti_i_start:ti_i_end, ti_j_start:ti_j_end]
     di_tile = di[di_i_start:di_i_end, di_j_start:di_j_end]
     
-    sp = generate_simulation_path(di_tile, inwardSim, sp_exclude)
+    sp = generate_simulation_path(di_tile, inwardSim, sp_exclude, seed)
     
-    args = ['-ti', ti_tile, '-di', di_tile, '-ki', ki, '-sp', sp]
-    params_list = list(params)
+    di_tile_clean = di_tile.copy()
+    if di_tile_clean.ndim == 3:
+        di_clean = di_tile_clean[:,:,0]
+    else:
+        di_clean = di_tile_clean
+    mask = (di_clean == sp_exclude)
+    di_clean[mask] = np.nan  # Replace excluded pixels with NaN
+    if di_tile_clean.ndim == 3:
+        di_tile_clean[:,:,0] = di_clean
+    else:
+        di_tile_clean = di_clean
+    
+    args = ['-ti', ti_tile, '-di', di_tile_clean, '-ki', ki, '-sp', sp]
+    # args = ['-ti', ti_tile, '-di', di_tile, '-ki', ki]
+    params_list = list(g2s_params)
     args.extend(params_list)
     simulation, index, *_ = g2s(*args)
+    
+    if simulation.ndim == 3:
+        sim_full = simulation[:,:,0]
+    else:
+        sim_full = simulation
+    sim_full[mask] = sp_exclude  # Restore excluded pixels to their original value
+    if simulation.ndim == 3:
+        simulation[:,:,0] = sim_full
+    else:
+        simulation = sim_full
+    
     return simulation
 
-def generate_simulation_path(image_with_gaps, inwardSim, sp_exclude):
+def generate_simulation_path(image_with_gaps, inwardSim, sp_exclude, seed):
     # Mask for valid and gap pixels
-    valid_mask = (~np.isnan(image_with_gaps[:,:,0])) & (image_with_gaps[:,:,0] != sp_exclude)
-    gap_mask = np.isnan(image_with_gaps[:,:,0])
+    if image_with_gaps.ndim == 3:
+        image_with_gaps = image_with_gaps[:,:,0]
+    valid_mask = (~np.isnan(image_with_gaps)) & (image_with_gaps != sp_exclude)
+    gap_mask = np.isnan(image_with_gaps)
     
     if inwardSim:
         # Compute distance transform, treating valid pixels as "background"
@@ -724,17 +752,18 @@ def generate_simulation_path(image_with_gaps, inwardSim, sp_exclude):
     else:
         # Random shuffle of gap indices
         gap_flat_indices = np.flatnonzero(gap_mask)
-        random.seed(42)  # For reproducibility
+        if seed is not None:
+            random.seed(seed)  # For reproducibility
         random.shuffle(gap_flat_indices)
         sorted_indices = gap_flat_indices
     
     # Initialize simulation path array
-    simulation_path = np.full_like(image_with_gaps[:,:,0], -np.inf, dtype=np.float32)
+    simulation_path = np.full_like(image_with_gaps, -np.inf, dtype=np.float32)
     
     # Assign simulation order to the gap pixels
     for order, idx in enumerate(sorted_indices, start=1):
         simulation_path.flat[idx] = order
-    
+
     return simulation_path
 
 def run_tile_simulation_stall(mod_coords, og_coords, ti, di, ki, params, sp, timeout=3000, idle_limit=60, max_retries=3):

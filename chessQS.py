@@ -25,6 +25,9 @@ overlap     = 100           # overlap between tiles
 threshold   = 25            # threshold to define poorly informed tiles
 maxTileSize = [2000, 2000]  # maximum length of merged tiles, in pixels 
 
+# Variable weights
+varWeights = [1, 0.1]
+
 # Kernel parameters
 ki_params = {
     'path':          dirPath,   # path to saving directory
@@ -47,7 +50,7 @@ g2s_params = (
 )
 
 # Simulation path parameters
-inwardSim  = True
+inwardSim  = False
 sp_exclude = [-2]  # value to exclude for simulation path generation
 
 # GeoTIFF parameters
@@ -59,6 +62,9 @@ crs_str      = 'EPSG:2056'          # EPSG code
 
 # Show plots
 plot = False
+
+# Random seed for reproducibility
+seed = 42
 
 # Load images
 ti_file_path = os.path.join(dirPath, tiName)
@@ -79,7 +85,7 @@ print(f'Tiles to be simulated: {len(tiles) - len(ignored_tiles)}')
 
 if plot == True:
     # Visualize the tiles on the image
-    visualize_tiles(di, tiles, ignored_tiles, empty_tiles, tiles_no_nans_in_di, 'turbo', tileNum = True)
+    visualize_tiles(di, tiles, ignored_tiles, empty_tiles, tiles_no_nans_in_di, 'turbo', tileNum = False)
     # Visualize the chessboard pattern
     visualize_filtered_chessboard(di, tiles, ignored_tiles, tile_size, overlap, 'gray', tileNum = False)
 
@@ -97,7 +103,7 @@ if plot == True:
 
 # Run simulations based on the modified tiles
 final_simulation_result = run_simulations(
-    ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ignored_tiles, ki, g2s_params, tile_size, overlap, inwardSim, sp_exclude
+    ti, di, mod_ti_tiles, mod_di_tiles, tiles, tile_analysis, ignored_tiles, ki, g2s_params, tile_size, overlap, inwardSim, sp_exclude, seed
 )
 
 # Save the final result as a GeoTIFF file
