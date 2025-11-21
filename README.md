@@ -6,14 +6,23 @@ This repository provides a workflow, __chessQS__, for spatial gap-filling and si
 
 ## Repository Structure
 chessQS.py
+
   -> Main file where parameters are defined and the simulations are run
+
 createKernel.py
+
   -> Function file for the creation of the kernel used by QS
+
 chessFunctionsQS.py
+
   -> Functions file with all necessary functions used by __chessQS__
+
 crossValidationQS.py
+
   -> Main file for cross-validation of the method, with parameters definition, simulation runs, and figure production
+
 crossValFunctionsQS.py
+
   -> Functions file with all necessary functions used for the cross-validation
 
 ---
@@ -21,7 +30,7 @@ crossValFunctionsQS.py
 ## Overview of the Workflow
 
 ### 0. Prerequisites
-The QS algorithm must be installed and operational for chessQS to run. chessQS does not include QS; it only calls an existing QS installation.
+The QS algorithm must be installed and operational for __chessQS__ to run. __chessQS__ does not include QS; it only calls an existing QS installation.
 
 All documentation related to QS installation, compilation, and execution is available at:
 https://gaia-unil.github.io/G2S/briefOverview.html
@@ -96,11 +105,11 @@ Final outputs are provided in both:
 - Runs QS simulations  
 - Computes metrics such as:
   - RMSE  
-  - Variogram differences  
-  - Hellinger distance  
-  - SPEM (optional)
+  - Variogram differences
+  - Overall Accuracy
+  - Cohen's Kappa
 
-Cross-validation routines are implemented in `crossValFunctionsQS.py`.
+Cross-validation functions are implemented in `crossValFunctionsQS.py`.
 
 *Note: this part of the workflow is not fully refactored but reproduces the results used in the corresponding research paper.*
 
