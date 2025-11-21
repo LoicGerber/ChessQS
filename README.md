@@ -1,27 +1,32 @@
-# QS-Based Gap-Filling Framework Using Chessboard Tiling
+# __chessQS__: A QS-Based Gap-Filling Framework Using Chessboard Tiling for Very Large and Complex Images
 
-This repository provides a workflow, **chessQS**, for spatial gap-filling and simulation using the **QuickSampling (QS)** algorithm.  
-The method subdivides the domain into overlapping chessboard-like tiles, evaluates data availability, merges poorly informed tiles, and applies QS simulations to reconstruct missing regions.  
-Optional systematic cross-validation is included, reproducing the results used in the associated research paper (in preparation).
+This repository provides a workflow, __chessQS__, for spatial gap-filling and simulation using the **QuickSampling (QS)** algorithm. The method subdivides the domain into overlapping chessboard-like tiles, evaluates data availability, merges poorly informed tiles, and applies QS simulations to reconstruct missing regions. Optional systematic cross-validation is included, reproducing the results used in the associated research paper (in preparation).
 
 ---
 
 ## Repository Structure
-├── chessQS.py              # Main workflow: parameters, tiling, merging, QS simulations
-
-├── createKernel.py         # Multi-layer QS kernel construction
-
-├── chessFunctionsQS.py     # Tiling, filtering, merging, and simulation utilities
-
-├── crossValidationQS.py    # Systematic cross-validation driver
-
-├── crossValFunctionsQS.py  # Cross-validation helper functions
-
-└── README.md               # Documentation
+chessQS.py
+  -> Main file where parameters are defined and the simulations are run
+createKernel.py
+  -> Function file for the creation of the kernel used by QS
+chessFunctionsQS.py
+  -> Functions file with all necessary functions used by __chessQS__
+crossValidationQS.py
+  -> Main file for cross-validation of the method, with parameters definition, simulation runs, and figure production
+crossValFunctionsQS.py
+  -> Functions file with all necessary functions used for the cross-validation
 
 ---
 
 ## Overview of the Workflow
+
+### 0. Prerequisites
+The QS algorithm must be installed and operational for chessQS to run. chessQS does not include QS; it only calls an existing QS installation.
+
+All documentation related to QS installation, compilation, and execution is available at:
+https://gaia-unil.github.io/G2S/briefOverview.html
+
+QS can be executed locally or on a remote machine. Ensure that the QS executable is accessible before running the workflow.
 
 ### 1. Input Images
 
