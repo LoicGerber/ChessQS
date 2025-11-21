@@ -37,6 +37,8 @@ https://gaia-unil.github.io/G2S/briefOverview.html
 
 QS can be executed locally or on a remote machine. Ensure that the QS executable is accessible before running the workflow.
 
+---
+
 ### 1. Input Images
 
 Two categorical rasters are required:
